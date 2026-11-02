@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ExcelDataReader" Version="3.9.0" />
+    <ProjectReference Include="../../src/NufeCampus.SelfService/NufeCampus.SelfService.csproj" />
+    <Compile Include="../../src/NufeCampus.App/OfficialHistory.cs" Link="OfficialHistory.cs" />
+  </ItemGroup>
+</Project>

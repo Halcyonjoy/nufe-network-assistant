@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/checks/">
+    <Project Path="checks/PolicyChecks/PolicyChecks.csproj" />
+    <Project Path="checks/WindowsChecks/WindowsChecks.csproj" />
+    <Project Path="checks/KeepAliveChecks/KeepAliveChecks.csproj" />
+    <Project Path="checks/SelfChecks/SelfChecks.csproj" />
+    <Project Path="checks/FeatureChecks/FeatureChecks.csproj" />
+    <Project Path="checks/PlatformChecks/PlatformChecks.csproj" />
+    <Project Path="checks/HistoryExportChecks/HistoryExportChecks.csproj" />
+    <Project Path="checks/NetworkChecks/NetworkChecks.csproj" />
+    <Project Path="checks/PackageChecks/PackageChecks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/NufeCampus.Agent/NufeCampus.Agent.csproj" />
+    <Project Path="src/NufeCampus.Cli/NufeCampus.Cli.csproj" />
+    <Project Path="src/NufeCampus.Scheduled/NufeCampus.Scheduled.csproj" />
+    <Project Path="src/NufeCampus.App/NufeCampus.App.csproj" />
+    <Project Path="src/NufeCampus.Core/NufeCampus.Core.csproj" />
+    <Project Path="src/NufeCampus.Windows/NufeCampus.Windows.csproj" />
+    <Project Path="src/NufeCampus.SelfService/NufeCampus.SelfService.csproj" />
+    <Project Path="src/NufeCampus.SelfWorker/NufeCampus.SelfWorker.csproj" />
+    <Project Path="src/NufeCampus.SetupSupport/NufeCampus.SetupSupport.csproj" />
+  </Folder>
+</Solution>

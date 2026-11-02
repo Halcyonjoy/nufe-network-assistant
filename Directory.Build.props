@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>NUFE Campus</Product>
+    <Company>NUFE Campus</Company>
+    <Description>NUFE Campus 校园网助手</Description>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'NufeCampus.App' Or '$(MSBuildProjectName)' == 'NufeCampus.Agent' Or '$(MSBuildProjectName)' == 'NufeCampus.Cli' Or '$(MSBuildProjectName)' == 'NufeCampus.Scheduled' Or '$(MSBuildProjectName)' == 'NufeCampus.SelfWorker' Or '$(MSBuildProjectName)' == 'NufeCampus.SetupSupport'">
+    <ApplicationIcon>$(MSBuildThisFileDirectory)assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+</Project>

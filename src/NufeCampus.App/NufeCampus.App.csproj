@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../NufeCampus.Windows/NufeCampus.Windows.csproj" />
+    <ProjectReference Include="../NufeCampus.SelfService/NufeCampus.SelfService.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ExcelDataReader" Version="3.9.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="../../assets/app.ico" Link="Assets/app.ico" />
+    <Resource Include="../../assets/app.png" Link="Assets/app.png" />
+  </ItemGroup>
+</Project>

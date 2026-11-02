@@ -1,0 +1,47 @@
+name: Build and offline checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore NufeCampus.slnx
+      - name: Build
+        run: dotnet build NufeCampus.slnx -c Release --no-restore
+      - name: Format
+        run: dotnet format whitespace NufeCampus.slnx --no-restore --verify-no-changes
+      - name: Offline checks
+        run: |
+          foreach ($project in @('PolicyChecks','SelfChecks','PlatformChecks')) {
+            dotnet run --project "checks/$project" -c Release --no-build
+            if ($LASTEXITCODE -ne 0) { throw "$project failed" }
+          }
+          foreach ($mode in @('--foreground-only','--observation-settings-only')) {
+            dotnet run --project checks/KeepAliveChecks -c Release --no-build -- $mode
+            if ($LASTEXITCODE -ne 0) { throw "$mode failed" }
+          }
+      - name: Public source archive
+        run: |
+          ./tools/Test-PublicSource.ps1
+          ./tools/Pack-Source.ps1
+          [xml]$props = Get-Content Directory.Build.props -Raw
+          $version = $props.Project.PropertyGroup[0].Version
+          ./tools/Test-PublicSource.ps1 -SourceArchive "dist/NUFE-Campus-Source-$version.zip"
