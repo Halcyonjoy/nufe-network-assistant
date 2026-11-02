@@ -4,7 +4,8 @@ using System.Text;
 using System.Xml.Linq;
 using NufeCampus.Windows;
 
-// Installer-only lifecycle operations. Never authenticate, start an agent, or open user data.
+// Installer-only lifecycle operations. Read the task name only; never decrypt credentials,
+// authenticate, or start an agent.
 internal static class Program
 {
     private static async Task<int> Main(string[] args)
@@ -22,7 +23,8 @@ internal static class Program
                 if (!target.Equals(Path.Combine(root, "app"), StringComparison.OrdinalIgnoreCase)) return 12;
             }
             string? testId = root == null ? null : Path.GetFileName(root)["NufeCampus-test-".Length..];
-            string taskName = StartupTask.Name + (testId == null ? "" : "-test-" + testId);
+            string configuredName = StartupTask.ReadConfiguredName(root);
+            string taskName = StartupTask.ScopedName(testId, configuredName);
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(80));
             string pending = Path.Combine(Path.GetTempPath(), "nufe-setup-task-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(target.ToUpperInvariant())))[..24] + ".xml");
             if (args[0] == "restore")
@@ -59,7 +61,7 @@ internal static class Program
             {
                 // An old uninstaller must not remove a task migrated to a newer copy elsewhere.
                 if (SamePath(command, Path.Combine(target, "NufeCampus.Agent.exe")) || ownScheduled)
-                    await StartupTask.SetAsync(false, command, deadline.Token, testId);
+                    await StartupTask.SetAsync(false, command, deadline.Token, testId, taskName: configuredName);
                 File.Delete(pending);
                 return 0;
             }
@@ -121,7 +123,7 @@ internal static class Program
         if (result.Exit != 0)
         {
             // Distinguish a missing task from access/Task Scheduler failures.
-            if (await StartupTask.ExistsAsync(token, name.Contains("-test-", StringComparison.Ordinal) ? name[(name.LastIndexOf("-test-", StringComparison.Ordinal) + 6)..] : null))
+            if ((await Scheduler(["/Query", "/TN", name], token)).Exit == 0)
                 throw new IOException("Task cannot be read");
             return null;
         }

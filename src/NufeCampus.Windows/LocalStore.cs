@@ -49,6 +49,7 @@ public sealed partial class LocalStore
         var result = JsonSerializer.Deserialize(File.ReadAllBytes(path), AppJson.Default.Settings) ?? throw new InvalidDataException("Settings invalid");
         if (result.Version != 1 || result.Carrier is not ("@cmcc" or "@njxy") || !KeepAliveConfiguration.IsValid(result.KeepAliveStrategy, result.CheckIntervalSeconds)) throw new InvalidDataException("Settings version, strategy or carrier rejected");
         if (!KeepAliveConfiguration.ValidObservation(result.ForegroundQuerySeconds, result.ForegroundProbeSeconds)) throw new InvalidDataException("Invalid foreground intervals");
+        if (!StartupTask.ValidName(result.TaskName)) throw new InvalidDataException("Invalid task name");
         return result;
     }
     public Settings ReadSettings() => Locked(ReadSettingsUnsafe);
@@ -57,6 +58,7 @@ public sealed partial class LocalStore
         var next = update(ReadSettingsUnsafe());
         if (next.Version != 1 || next.Carrier is not ("@cmcc" or "@njxy") || !KeepAliveConfiguration.IsValid(next.KeepAliveStrategy, next.CheckIntervalSeconds)) throw new InvalidDataException("Settings rejected");
         if (!KeepAliveConfiguration.ValidObservation(next.ForegroundQuerySeconds, next.ForegroundProbeSeconds)) throw new InvalidDataException("Invalid foreground intervals");
+        if (!StartupTask.ValidName(next.TaskName)) throw new InvalidDataException("Invalid task name");
         AtomicWrite(Path.Combine(Root, "settings.json"), JsonSerializer.SerializeToUtf8Bytes(next, AppJson.Default.Settings));
         return next;
     });

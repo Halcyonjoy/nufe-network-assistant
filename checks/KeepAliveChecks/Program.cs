@@ -4,6 +4,8 @@ using System.Xml.Linq;
 using NufeCampus.Core;
 using NufeCampus.Windows;
 
+if (args is ["--task-name-only", var setupSupport]) return await TaskNameChecks.RunAsync(setupSupport);
+
 int passed = 0, failed = 0;
 void Check(string name, bool ok) { Console.WriteLine((ok ? "PASS " : "FAIL ") + name); if (ok) passed++; else failed++; }
 async Task<(int Exit, string Output)> Run(string executable, string[] arguments, string? root = null)

@@ -105,6 +105,7 @@ public sealed partial class LocalStore
             Enabled = global.Enabled,
             AutoStart = global.AutoStart,
             KeepAliveStrategy = global.KeepAliveStrategy,
+            TaskName = global.TaskName,
             CheckIntervalSeconds = global.CheckIntervalSeconds,
             ForegroundQuerySeconds = global.ForegroundQuerySeconds,
             ForegroundProbeSeconds = global.ForegroundProbeSeconds,

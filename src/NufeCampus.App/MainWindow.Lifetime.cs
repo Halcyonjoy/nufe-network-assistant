@@ -17,7 +17,7 @@ public partial class MainWindow
             Feedback.Text = "操作仍在进行，请先等待完成或取消请求，再关闭窗口。";
             return;
         }
-        if (!hasUnsavedChanges && !observationUnsaved) return;
+        if (!hasUnsavedChanges && !observationUnsaved && !taskNameUnsaved) return;
         e.Cancel = true;
         if (await ConfirmAsync("放弃未应用的设置？", "未应用的账号、密码或设置会丢失。关闭此窗口不会停止已经运行的后台。确认关闭？"))
         {

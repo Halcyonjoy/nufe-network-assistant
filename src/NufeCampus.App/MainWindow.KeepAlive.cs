@@ -7,6 +7,56 @@ namespace NufeCampus.App;
 
 public partial class MainWindow
 {
+    private bool taskNameUnsaved;
+    private void ShowTaskLocation(Settings settings, bool exists)
+    {
+        string name = StartupTask.ScopedName(taskName: settings.TaskName);
+        TaskNote.Text = $"任务计划程序库（根目录） → {name}\n" + (exists ? "任务已注册；列表未更新时按 F5 刷新。" : "任务尚未注册；启用对应策略并保存应用后创建。");
+    }
+
+    private void TaskNameChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded || loadingPreferences) return;
+        taskNameUnsaved = true;
+        TaskNameNote.Text = "名称尚未应用，请点击“应用计划名称”；其他偏好仍按原方式保存。";
+    }
+
+    private async void ApplyTaskNameClick(object sender, RoutedEventArgs e) => await Run(async () =>
+    {
+        string name = TaskNameBox.Text.Trim();
+        if (!StartupTask.ValidName(name)) throw new UserNotice("计划名称最多 128 个字符，不能包含路径分隔符、控制字符或 \\ / : * ? \" < > |，也不能为 . 或 ..。");
+        var running = await AgentForConfiguration();
+        if (running != null)
+        {
+            using var stopLimit = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+            await AgentLifetime.StopAsync(testRoot, AgentExe, stopLimit.Token);
+        }
+        try
+        {
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(closed.Token); limit.CancelAfter(TimeSpan.FromSeconds(65));
+            using var lease = await RunnerLease.AcquireAsync(store, limit.Token);
+            if (testRoot == null) await StartupTask.RenameAsync(store, name, AgentExe, limit.Token);
+            else
+            {
+                // UI tests never configure real tasks; first-use naming must not enable keepalive.
+                bool firstPreferences = !File.Exists(Path.Combine(store.Root, "settings.json"));
+                store.UpdateSettings(s => s with { TaskName = name, Enabled = !firstPreferences && s.Enabled, AutoStart = !firstPreferences && s.AutoStart });
+            }
+            var settings = store.ReadSettings();
+            TaskNameBox.Text = settings.TaskName;
+            taskNameUnsaved = false;
+            bool exists = testRoot == null && await StartupTask.ExistsAsync(limit.Token, taskName: settings.TaskName);
+            ShowTaskLocation(settings, exists);
+            TaskNameNote.Text = "计划名称已应用；间隔、启用和暂停状态保持原设置。";
+            Feedback.Text = "计划名称已应用。";
+        }
+        catch (IOException)
+        {
+            throw new UserNotice("计划名称未能应用：名称可能已被占用，或 Windows 任务迁移失败。请检查任务列表后重试；不会覆盖其他任务。");
+        }
+        finally { if (running != null && !closed.IsCancellationRequested) await EnsureAgent(); }
+    });
+
     private bool UsesScheduledKeepAlive => store.ReadSettings().KeepAliveStrategy == "scheduler";
     private string ScheduledExe => Path.Combine(AppContext.BaseDirectory, "NufeCampus.Scheduled.exe");
 
@@ -33,10 +83,8 @@ public partial class MainWindow
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(closed.Token); timeout.CancelAfter(TimeSpan.FromSeconds(15));
         bool scheduled = settings.KeepAliveStrategy == "scheduler";
         await StartupTask.SetAsync(scheduled ? settings.Enabled && !settings.ScheduledStopped : settings.AutoStart,
-            scheduled ? ScheduledExe : AgentExe, timeout.Token, strategy: settings.KeepAliveStrategy, intervalSeconds: settings.CheckIntervalSeconds);
-        TaskNote.Text = scheduled
-            ? settings.Enabled && !settings.ScheduledStopped ? $"任务计划已配置，每 {settings.CheckIntervalSeconds / 60} 分钟检查。" : "任务计划保活已停止。"
-            : settings.AutoStart ? "登录启动任务已配置。" : "登录启动任务已移除。";
+            scheduled ? ScheduledExe : AgentExe, timeout.Token, strategy: settings.KeepAliveStrategy, intervalSeconds: settings.CheckIntervalSeconds, taskName: settings.TaskName);
+        ShowTaskLocation(settings, scheduled ? settings.Enabled && !settings.ScheduledStopped : settings.AutoStart);
     }
 
     private async Task<AgentResponse> ScheduledCommand(string command, int seconds)

@@ -11,6 +11,7 @@ public sealed record Settings
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = true;
     public string KeepAliveStrategy { get; set; } = "agent";
+    public string TaskName { get; set; } = "";
     public int CheckIntervalSeconds { get; set; } = 30;
     public int ForegroundQuerySeconds { get; set; } = 3;
     public int ForegroundProbeSeconds { get; set; } = 120;

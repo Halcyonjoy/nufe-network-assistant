@@ -24,6 +24,7 @@ SDK不在PATH时向脚本传`-Dotnet 'PATH/TO/dotnet.exe'`。免安装输出为a
 | 当前接口与网速 | NetworkChecks |
 | 前台只读契约 | KeepAliveChecks --foreground-only |
 | 前台间隔存储/备份/账号切换 | KeepAliveChecks --observation-settings-only |
+| 计划名称存储、迁移、冲突回退及安装维护 | KeepAliveChecks --task-name-only src/NufeCampus.SetupSupport/bin/Release/net10.0-windows/NufeCampus.SetupSupport.dll（先构建解决方案；仅操作禁用触发器的隔离任务） |
 | Agent/IPC/任务真实隔离边界 | WindowsChecks --package artifacts/preview-win-x64 |
 | CLI及两种策略安装维护 | KeepAliveChecks --package artifacts/preview-win-x64 |
 | 安装/升级/卸载 | PackageChecks dist/NUFE-Campus-Setup-1.0.0-x64.exe PATH/TO/EVIDENCE |

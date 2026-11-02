@@ -50,13 +50,15 @@ public partial class MainWindow : Window
             EnableBox.IsChecked = data.Settings.Enabled; AutoStartBox.IsChecked = data.Settings.AutoStart; HttpConsent.IsChecked = data.Settings.HttpConsent;
             StrategyBox.SelectedIndex = data.Settings.KeepAliveStrategy == "scheduler" ? 1 : 0;
             CheckIntervalBox.Text = data.Settings.CheckIntervalSeconds.ToString(); UpdateStrategyControls();
+            TaskNameBox.Text = data.Settings.TaskName;
+            taskNameUnsaved = false;
             ForegroundQueryBox.Text = data.Settings.ForegroundQuerySeconds.ToString();
             ForegroundProbeBox.Text = data.Settings.ForegroundProbeSeconds.ToString(); ApplyObservationSettings(data.Settings);
             CarrierBox.SelectedIndex = data.Settings.Carrier == "@cmcc" ? 0 : 1;
             AccountBox.Text = data.Campus?.Account ?? "";
             CredentialNote.Text = data.Campus != null ? "校园网凭据已加密保存。密码不会回填到界面。" : "尚未保存可用的校园网凭据。";
             LoadFeaturePreferences(data.Settings); InitializeCredentialChoice(data.Campus != null); UpdateConfigurationSummary();
-            if (testRoot == null) { using var timeout = new CancellationTokenSource(5000); bool exists = await StartupTask.ExistsAsync(timeout.Token); TaskNote.Text = exists ? "已注册当前用户的登录启动任务。" : "尚未注册登录启动任务；保存并应用后设置。"; }
+            if (testRoot == null) { using var timeout = new CancellationTokenSource(5000); bool exists = await StartupTask.ExistsAsync(timeout.Token, taskName: data.Settings.TaskName); ShowTaskLocation(data.Settings, exists); }
             else TaskNote.Text = "隔离测试不注册 Windows 计划任务。";
         }
         catch { Feedback.Text = "读取配置失败。请检查本机文件；损坏的凭据需要重新输入，不会采用明文回退。"; }
@@ -262,7 +264,7 @@ public partial class MainWindow : Window
         if (!await ConfirmAsync("移除本机数据", "移除当前用户的自启动任务、本机配置、加密凭据和诊断日志。手动导出的备份和记录不删除。程序文件可随后自行删除。确认清理？")) return;
         await Run(async () =>
         {
-            await StopAgent(); if (testRoot == null) { using var limit = new CancellationTokenSource(10000); await StartupTask.SetAsync(false, AgentExe, limit.Token); }
+            await StopAgent(); if (testRoot == null) { using var limit = new CancellationTokenSource(10000); await StartupTask.SetAsync(false, AgentExe, limit.Token, taskName: store.ReadSettings().TaskName); }
             await Task.Run(store.RemoveOwnedData); removed = true; refresh.Stop(); CampusPassword.Clear();
             Feedback.Text = "本机配置、凭据和自启动已清理。手动导出文件保留，可关闭窗口。"; PhaseText.Text = "本机数据已移除"; IssueText.Text = "";
         });
