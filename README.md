@@ -113,7 +113,9 @@
 
 ### 获取与设置
 
-安装包如有发布，可从 [Releases](https://github.com/Halcyonjoy/nufe-network-assistant/releases) 获取；也可按[开发指南](docs/development.md)自行构建。
+普通用户可直接[下载 Windows x64 安装包（v1.0.0）](https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/v1.0.0/NUFE-Campus-Setup-1.0.0-x64.exe)，对应的 [SHA256 校验文件](https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/v1.0.0/NUFE-Campus-Setup-1.0.0-x64.exe.sha256)可用于核对下载内容。
+
+新版本及安装说明见[最新 Release](https://github.com/Halcyonjoy/nufe-network-assistant/releases/latest)。Release 页面中的 `Source code` 是源码，不是安装程序；需要自行构建时请参考[开发指南](docs/development.md)。
 
 安装版运行 `NUFE-Campus-Setup-<版本>-x64.exe`；免安装版从完整发布目录运行 `NufeCampus.App.exe`，保留配套文件。请使用普通 Windows 用户运行。
 
