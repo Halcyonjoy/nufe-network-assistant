@@ -79,6 +79,7 @@ public partial class MainWindow
 
     private async Task ConfigureKeepAliveTask(Settings settings)
     {
+        foregroundStrategy = settings.KeepAliveStrategy;
         if (testRoot != null) { TaskNote.Text = "隔离测试不配置真实 Windows 计划任务。"; return; }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(closed.Token); timeout.CancelAfter(TimeSpan.FromSeconds(15));
         bool scheduled = settings.KeepAliveStrategy == "scheduler";

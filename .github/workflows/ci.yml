@@ -38,6 +38,8 @@ jobs:
             dotnet run --project checks/KeepAliveChecks -c Release --no-build -- $mode
             if ($LASTEXITCODE -ne 0) { throw "$mode failed" }
           }
+          dotnet run --project checks/SelfChecks -c Release --no-build -- --responsiveness-only
+          if ($LASTEXITCODE -ne 0) { throw 'Self-service responsiveness check failed' }
       - name: Public source archive
         run: |
           ./tools/Test-PublicSource.ps1

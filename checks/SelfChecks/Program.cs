@@ -5,6 +5,29 @@ using System.Text;
 using System.Text.Json;
 using System.Globalization;
 
+if (args is ["--responsiveness-only"])
+{
+    using var release = new ManualResetEventSlim();
+    int caller = Environment.CurrentManagedThreadId, guardsOnCaller = 0;
+    using var client = new SelfClient(new Fixture(), () =>
+    {
+        if (Environment.CurrentManagedThreadId == caller) Interlocked.Increment(ref guardsOnCaller);
+        release.Wait(TimeSpan.FromMilliseconds(300)); // A slow WLAN service must not block input.
+        return new("nufe", "192.0.2.1", "001122334455");
+    })
+    { Consent = true };
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    var pending = client.PrepareLoginAsync(CancellationToken.None);
+    long initiationMs = watch.ElapsedMilliseconds;
+    bool responsive = initiationMs < 150 && !pending.IsCompleted;
+    release.Set();
+    var challenge = await pending.WaitAsync(TimeSpan.FromSeconds(5));
+    bool guardedOffCaller = guardsOnCaller == 0 && challenge.Captcha.Length > 0;
+    Console.WriteLine($"{(responsive ? "PASS" : "FAIL")} Request returns before slow WLAN work completes ({initiationMs} ms)");
+    Console.WriteLine($"{(guardedOffCaller ? "PASS" : "FAIL")} WLAN guards and login parsing complete away from the caller thread");
+    return responsive && guardedOffCaller ? 0 : 1;
+}
+
 var checks = new List<(string, bool)>(); var none = CancellationToken.None;
 void Check(string name, bool value) { checks.Add((name, value)); Console.WriteLine((value ? "PASS " : "FAIL ") + name); }
 async Task<bool> Reject(Func<Task> work, string code) { try { await work(); return false; } catch (SelfException e) { return e.Code == code; } }

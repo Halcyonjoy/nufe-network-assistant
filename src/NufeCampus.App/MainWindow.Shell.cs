@@ -130,6 +130,7 @@ public partial class MainWindow
     }
     private void RenderShellStatus(AgentStatus? status)
     {
+        bool hasCredentials = status?.HasCredentials ?? foregroundHasCredentials;
         AuthBadge.Text = "认证 · " + (status?.Authentication switch { "online" => "已认证", "offline" => "未认证", _ => "未确认" });
         InternetBadge.Text = "外网 · " + (status?.Internet switch { "reachable" => "可访问", "probe_failed" => "探测未通过", _ => "未检测" });
         KeeperBadge.Text = "保活 · " + (status == null ? "后台未运行" : status.Paused ? "已暂停" : !status.KeepAliveEnabled ? "已关闭" : !status.IsNufe ? "离校静默" : "运行中");
@@ -144,12 +145,12 @@ public partial class MainWindow
             IssueText.Text = "点击“认证一次”手动连接；后台保活需要加密保存账号密码。";
             ConnectionHint.Text = "当前账号仅本次使用；关闭窗口不保留密码，不运行后台保活。";
         }
-        else if (!store.HasSecret())
+        else if (!hasCredentials)
         {
             MainConnectionButton.Content = "设置校园网账号";
             ConnectionHint.Text = "请先填写账号密码，并选择是否加密保存。";
         }
-        if (UsesScheduledKeepAlive && sessionCredential == null && store.HasSecret())
+        if (foregroundStrategy == "scheduler" && sessionCredential == null && hasCredentials)
         {
             KeeperBadge.Text = "任务保活 · " + (status?.Paused == true ? "已暂停" : status?.KeepAliveEnabled == true ? "已配置" : "已停止");
             ConnectionHint.Text = "前台独立实时查询认证状态；任务计划按设置间隔保活。关闭窗口不停止任务，退出程序及后台会停止任务。";
@@ -178,6 +179,8 @@ public partial class MainWindow
     {
         if (append) { rateHistory.Enqueue((DateTimeOffset.UtcNow, sample)); while (rateHistory.Count > 60) rateHistory.Dequeue(); }
         else if (rateHistory.Count > 0) sample = rateHistory.Last().Rate;
+        // Continue collecting history on other pages, but only format and draw visible controls.
+        if (MainTabs.SelectedIndex != 0) return;
         bool mbps = MbpsBox.IsChecked == true; double factor = mbps ? 8.0 / 1_000_000 : 1.0 / 1_000_000;
         DownloadRate.Text = sample == null ? "—" : (sample.Download * factor).ToString("0.##");
         UploadRate.Text = sample == null ? "—" : (sample.Upload * factor).ToString("0.##");

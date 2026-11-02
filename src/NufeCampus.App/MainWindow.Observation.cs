@@ -9,6 +9,8 @@ public partial class MainWindow
     private string foregroundInternet = "unknown";
     private int foregroundProbeSeconds = 120, foregroundNetworkVersion;
     private bool probingForeground, observationUnsaved;
+    private string foregroundStrategy = "agent";
+    private bool foregroundHasCredentials;
 
     private (int Query, int Probe) ReadObservationInputs()
     {
@@ -83,36 +85,43 @@ public partial class MainWindow
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(closed.Token);
         limit.CancelAfter(TimeSpan.FromSeconds(10));
-        using var portal = new CampusPortal();
-        var reply = await Task.Run(() => OneShotAuthentication.QueryAsync(store, portal,
-            testRoot == null ? Wifi.Read : () => new("off_campus"), limit.Token), limit.Token);
-        var settings = store.ReadSettings();
-        bool active = settings.KeepAliveStrategy == "scheduler"
-            ? !settings.ScheduledStopped : AgentLifetime.IsRunning(testRoot);
-        AgentStatus? keeper = null;
-        if (settings.KeepAliveStrategy == "scheduler")
+        // Keep all local I/O and mutex waits off the dispatcher, not just the HTTP query.
+        var snapshot = await Task.Run(async () =>
         {
-            try { keeper = store.ReadLastCheck(); }
-            catch (Exception error) when (error is System.IO.IOException or System.Text.Json.JsonException) { }
-        }
-        if (settings.KeepAliveStrategy == "agent" && active)
-        {
-            using var metadataLimit = CancellationTokenSource.CreateLinkedTokenSource(limit.Token);
-            metadataLimit.CancelAfter(500);
-            try { keeper = (await AgentPipe.CallAsync(pipe, "status", metadataLimit.Token)).Status; }
-            catch (Exception error) when (error is System.IO.IOException or TimeoutException or OperationCanceledException) { }
-        }
-        return reply with
-        {
-            Status = reply.Status with
+            using var portal = new CampusPortal();
+            var reply = await OneShotAuthentication.QueryAsync(store, portal,
+                testRoot == null ? Wifi.Read : () => new("off_campus"), limit.Token);
+            var settings = store.ReadSettings();
+            bool active = settings.KeepAliveStrategy == "scheduler"
+                ? !settings.ScheduledStopped : AgentLifetime.IsRunning(testRoot);
+            AgentStatus? keeper = null;
+            if (settings.KeepAliveStrategy == "scheduler")
             {
-                KeepAliveEnabled = settings.Enabled && active && sessionCredential == null,
-                Paused = settings.Memory.PausedByTool,
+                try { keeper = store.ReadLastCheck(); }
+                catch (Exception error) when (error is System.IO.IOException or System.Text.Json.JsonException) { }
+            }
+            if (settings.KeepAliveStrategy == "agent" && active)
+            {
+                using var metadataLimit = CancellationTokenSource.CreateLinkedTokenSource(limit.Token);
+                metadataLimit.CancelAfter(500);
+                try { keeper = (await AgentPipe.CallAsync(pipe, "status", metadataLimit.Token)).Status; }
+                catch (Exception error) when (error is System.IO.IOException or TimeoutException or OperationCanceledException) { }
+            }
+            return (Reply: reply, Settings: settings, Active: active, Keeper: keeper);
+        }, limit.Token);
+        foregroundStrategy = snapshot.Settings.KeepAliveStrategy;
+        foregroundHasCredentials = snapshot.Reply.Status.HasCredentials;
+        return snapshot.Reply with
+        {
+            Status = snapshot.Reply.Status with
+            {
+                KeepAliveEnabled = snapshot.Settings.Enabled && snapshot.Active && sessionCredential == null,
+                Paused = snapshot.Settings.Memory.PausedByTool,
                 Internet = foregroundInternet,
-                LastRecovery = keeper?.LastRecovery,
-                FailureAt = keeper?.FailureAt,
-                ServerMessage = keeper?.ServerMessage ?? "",
-                Issue = reply.Status.Issue.Length > 0 ? reply.Status.Issue : settings.CredentialIssue
+                LastRecovery = snapshot.Keeper?.LastRecovery,
+                FailureAt = snapshot.Keeper?.FailureAt,
+                ServerMessage = snapshot.Keeper?.ServerMessage ?? "",
+                Issue = snapshot.Reply.Status.Issue.Length > 0 ? snapshot.Reply.Status.Issue : snapshot.Settings.CredentialIssue
             }
         };
     }

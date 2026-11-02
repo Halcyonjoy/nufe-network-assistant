@@ -20,7 +20,8 @@ public sealed partial class SelfClient : IDisposable
     private Dictionary<string, string>? loginFields;
     private Uri? loginAction;
     private string account = "";
-    public bool Consent { get; set; }
+    private volatile bool consent;
+    public bool Consent { get => consent; set => consent = value; }
     public bool Authenticated { get; private set; }
     public string AuthenticatedAccount => Authenticated ? account : "";
     public bool HasLoginChallenge => loginFields != null;
@@ -40,7 +41,14 @@ public sealed partial class SelfClient : IDisposable
         http = new(handler) { Timeout = TimeSpan.FromSeconds(12) };
     }
     private WifiState Guard() { var n = wifi(); if (n.Kind != "nufe" || n.Address == null) throw new SelfException("off_campus"); if (!Consent) throw new SelfException("consent"); return n; }
-    private async Task<T> Locked<T>(Func<Task<T>> work, CancellationToken token) { await gate.WaitAsync(token); try { Guard(); return await work(); } finally { gate.Release(); } }
+    // WLAN APIs and HTML/JSON parsing can block even before an HTTP await yields.
+    // Start the whole serialized operation off the caller's UI context, including Guard.
+    private Task<T> Locked<T>(Func<Task<T>> work, CancellationToken token) => Task.Run(async () =>
+    {
+        await gate.WaitAsync(token).ConfigureAwait(false);
+        try { Guard(); return await work().ConfigureAwait(false); }
+        finally { gate.Release(); }
+    }, token);
     private static string StripSession(string path) => Regex.Replace(path, @";jsessionid=[^/;?]*", "", RegexOptions.IgnoreCase);
     private static Uri Action(string text, string path)
     {
