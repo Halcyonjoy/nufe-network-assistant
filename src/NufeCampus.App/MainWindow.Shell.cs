@@ -105,6 +105,19 @@ public partial class MainWindow
     private void OpenProtectionClick(object sender, RoutedEventArgs e) => NavigateFromShortcut("devices", 2);
     private void OpenSpeedClick(object sender, RoutedEventArgs e) => NavigateFromShortcut("settings", 3);
     private void MoreConnectionClick(object sender, RoutedEventArgs e) => ConnectionDetails.IsExpanded = !ConnectionDetails.IsExpanded;
+    private async void ConnectionDetailsChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || !ReferenceEquals(e.Source, ConnectionDetails)) return;
+        bool expanded = ConnectionDetails.IsExpanded;
+        MoreConnectionButton.Content = expanded ? "收起连接操作 ⌃" : "更多连接操作 ⌄";
+        // Wait for the expander to participate in layout before scrolling to it.
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (closed.IsCancellationRequested || ConnectionDetails.IsExpanded != expanded) return;
+            if (expanded) ConnectionDetails.BringIntoView();
+            else { MoreConnectionButton.BringIntoView(); MoreConnectionButton.Focus(); }
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
     private async void MainConnectionClick(object sender, RoutedEventArgs e)
     {
         if (sessionCredential != null) { await Run(AuthenticateSessionOnce); return; }
