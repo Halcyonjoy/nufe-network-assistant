@@ -21,8 +21,11 @@ internal static class TaskNameChecks
         async Task<int> Lifecycle(string operation)
         {
             string dotnet = Path.GetFullPath(Path.Combine(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", "..", "dotnet.exe"));
-            var start = new ProcessStartInfo(dotnet) { UseShellExecute = false, CreateNoWindow = true };
-            foreach (string arg in new[] { Path.GetFullPath(setupSupport), operation, "--target", app, "--test-root", root }) start.ArgumentList.Add(arg);
+            string helper = Path.GetFullPath(setupSupport);
+            bool native = Path.GetExtension(helper).Equals(".exe", StringComparison.OrdinalIgnoreCase);
+            var start = new ProcessStartInfo(native ? helper : dotnet) { UseShellExecute = false, CreateNoWindow = true };
+            if (!native) start.ArgumentList.Add(helper);
+            foreach (string arg in new[] { operation, "--target", app, "--test-root", root }) start.ArgumentList.Add(arg);
             using var process = Process.Start(start)!;
             await process.WaitForExitAsync(limit.Token); return process.ExitCode;
         }

@@ -115,13 +115,13 @@
 
 ### 获取与设置
 
-普通用户可直接[下载 Windows x64 安装包（v1.0.0）](https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/v1.0.0/NUFE-Campus-Setup-1.0.0-x64.exe)，对应的 [SHA256 校验文件](https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/v1.0.0/NUFE-Campus-Setup-1.0.0-x64.exe.sha256)可用于核对下载内容。
+普通用户可直接[下载 Windows x64 安装包（v1.1.0）](https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/v1.1.0/NUFE-Campus-Setup-1.1.0-x64.exe)，对应的 [SHA256 校验文件](https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/v1.1.0/NUFE-Campus-Setup-1.1.0-x64.exe.sha256)可用于核对下载内容。
 
 新版本及安装说明见[最新 Release](https://github.com/Halcyonjoy/nufe-network-assistant/releases/latest)。Release 页面中的 `Source code` 是源码，不是安装程序；需要自行构建时请参考[开发指南](docs/development.md)。
 
 ### 下载与运行时的安全提示
 
-当前发布的 v1.0.0 安装包未进行代码签名。浏览器或 Windows 可能提示“下载不常见”“未知发布者”或要求进一步确认；新程序尚未建立下载信誉也可能触发此类提示。相关机制见[微软说明](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation)和 [Chrome 说明](https://support.google.com/chrome/answer/6261569?hl=zh-Hans)。
+当前发布的 v1.1.0 安装包未进行代码签名。浏览器或 Windows 可能提示“下载不常见”“未知发布者”或要求进一步确认；新程序尚未建立下载信誉也可能触发此类提示。相关机制见[微软说明](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation)和 [Chrome 说明](https://support.google.com/chrome/answer/6261569?hl=zh-Hans)。
 
 请从本仓库的 Release 页面下载，并将安装包的 SHA256 与对应校验文件核对，确认文件一致。信誉提示本身不等同于已检出病毒，校验值一致也不代表安全检测结论；如果出现具体恶意软件名称、文件被隔离或校验不一致，请暂停安装并通过 [Issues](https://github.com/Halcyonjoy/nufe-network-assistant/issues)反馈完整提示。无需关闭浏览器或系统安全防护。
 
