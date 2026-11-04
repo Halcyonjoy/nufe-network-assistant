@@ -13,6 +13,22 @@ using NufeCampus.Windows;
 var checks = new List<(string Name, bool Passed)>();
 Console.WriteLine("Runtime " + Environment.Version);
 void Check(string name, bool success) { checks.Add((name, success)); Console.WriteLine($"{(success ? "PASS" : "FAIL")} {name}"); }
+if (args.Contains("--remove-data-only"))
+{
+    string dataRoot = LocalStore.ValidateTestRoot(Path.Combine(Path.GetTempPath(), "NufeCampus-test-" + Guid.NewGuid().ToString("N")));
+    var data = new LocalStore(dataRoot);
+    data.SaveSecret(new("14000001", "synthetic-removal"));
+    data.UpdateSettings(s => s with { Enabled = false });
+    Directory.CreateDirectory(data.Logs);
+    File.WriteAllText(Path.Combine(data.Logs, "events.log"), "synthetic");
+    var run = new KeepAliveRunBuilder(KeepAliveSource.Scheduler); run.Observe("online"); data.RecordKeepAliveRun(run.Finish());
+    string exported = Path.Combine(dataRoot, "manual-export.txt"); File.WriteAllText(exported, "synthetic export");
+    data.RemoveOwnedData();
+    Check("Remove credentials, settings, logs and history while preserving manual exports",
+        Directory.GetFiles(dataRoot).Select(Path.GetFileName).SequenceEqual(new[] { "manual-export.txt" }) && !Directory.GetDirectories(dataRoot).Any());
+    File.Delete(exported); Directory.Delete(dataRoot);
+    return checks.All(c => c.Passed) ? 0 : 1;
+}
 if (args.Contains("--pause-only"))
 {
     var pauseStore = new LocalStore(Path.Combine(Path.GetTempPath(), "NufeCampus-test-" + Guid.NewGuid().ToString("N")));

@@ -62,6 +62,59 @@ Name: "{userdesktop}\NUFE Campus"; Filename: "{app}\NufeCampus.App.exe"; Working
 Filename: "{app}\NufeCampus.App.exe"; Description: "打开 NUFE Campus"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent unchecked; Check: not IsIsolated
 
 [Code]
+var DeleteUserData: Boolean;
+
+function InitializeUninstall: Boolean;
+var Form: TSetupForm; Check: TNewCheckBox; Info: TNewStaticText;
+    ProceedButton, CancelButton: TNewButton;
+begin
+  Result := True;
+  DeleteUserData := False;
+  if UninstallSilent then Exit;
+  Form := CreateCustomForm(440, 190, False, False);
+  try
+    Form.Caption := '卸载 NUFE Campus';
+    Info := TNewStaticText.Create(Form);
+    Info.Parent := Form;
+    Info.SetBounds(ScaleX(20), ScaleY(20), ScaleX(400), ScaleY(52));
+    Info.AutoSize := False;
+    Info.WordWrap := True;
+    Info.Caption := '卸载将停止并移除本程序的保活任务。默认保留用户数据，方便以后重新安装。';
+    Check := TNewCheckBox.Create(Form);
+    Check.Parent := Form;
+    Check.SetBounds(ScaleX(20), ScaleY(76), ScaleX(400), ScaleY(24));
+    Check.Caption := '同时删除用户数据';
+    Info := TNewStaticText.Create(Form);
+    Info.Parent := Form;
+    Info.SetBounds(ScaleX(20), ScaleY(104), ScaleX(400), ScaleY(32));
+    Info.AutoSize := False;
+    Info.WordWrap := True;
+    Info.Caption := '删除账号配置、加密凭据、日志及保活记录。手动导出的文件不受影响。';
+    ProceedButton := TNewButton.Create(Form);
+    ProceedButton.Parent := Form;
+    ProceedButton.SetBounds(ScaleX(252), ScaleY(150), ScaleX(80), ScaleY(26));
+    ProceedButton.Caption := '继续卸载';
+    ProceedButton.ModalResult := mrOk;
+    ProceedButton.Default := True;
+    CancelButton := TNewButton.Create(Form);
+    CancelButton.Parent := Form;
+    CancelButton.SetBounds(ScaleX(340), ScaleY(150), ScaleX(80), ScaleY(26));
+    CancelButton.Caption := '取消';
+    CancelButton.ModalResult := mrCancel;
+    CancelButton.Cancel := True;
+    Result := Form.ShowModal = mrOk;
+    DeleteUserData := Result and Check.Checked;
+  finally
+    Form.Free;
+  end;
+end;
+
+function UninstallDataArguments: String;
+begin
+  Result := '';
+  if DeleteUserData then Result := ' --delete-user-data';
+end;
+
 function IsIsolated: Boolean;
 begin
   Result := ExpandConstant('{param:TESTROOT|}') <> '';
@@ -134,10 +187,10 @@ var Code: Integer;
 begin
   if CurUninstallStep = usUninstall then begin
     if not Exec(ExpandConstant('{app}\NufeCampus.SetupSupport.exe'),
-      'uninstall --target "' + ExpandConstant('{app}') + '"' + TestArguments,
+      'uninstall --target "' + ExpandConstant('{app}') + '"' + TestArguments + UninstallDataArguments,
       '', SW_HIDE, ewWaitUntilTerminated, Code) then Code := -1;
     if Code <> 0 then begin
-      MsgBox('请关闭 NUFE Campus 窗口并等待自助操作结束，再重试卸载。返回码：' + IntToStr(Code), mbError, MB_OK);
+      MsgBox('停止程序、移除保活任务或清理用户数据未完成。请关闭 NUFE Campus 并检查数据目录权限，再重试卸载。返回码：' + IntToStr(Code), mbError, MB_OK);
       Abort;
     end;
   end;

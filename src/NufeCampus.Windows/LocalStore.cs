@@ -110,12 +110,21 @@ public sealed partial class LocalStore
     public void DeleteSecret(bool broadband) => Locked(() => { File.Delete(SecretPath(broadband)); if (broadband) UpdateVaultBroadband(null); return true; });
     public void RemoveOwnedData() => Locked(() =>
     {
+        foreach (string directory in new[] { Root, Logs, Path.Combine(Root, "keepalive-history") })
+            if (Directory.Exists(directory) && (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new IOException("Data directory link rejected");
         foreach (var name in new[] { "campus.dpapi", "broadband.dpapi", "accounts.dpapi", "self-service.dpapi", "settings.json", "last-check.json", "runner.lock" }) File.Delete(Path.Combine(Root, name));
         foreach (var pattern in new[] { "campus.dpapi.tmp-*", "broadband.dpapi.tmp-*", "accounts.dpapi.tmp-*", "self-service.dpapi.tmp-*", "settings.json.tmp-*" }) foreach (var file in Directory.EnumerateFiles(Root, pattern)) File.Delete(file);
         if (Directory.Exists(Logs))
         {
             foreach (var file in Directory.EnumerateFiles(Logs, "*.log")) File.Delete(file);
             if (!Directory.EnumerateFileSystemEntries(Logs).Any()) Directory.Delete(Logs);
+        }
+        string history = Path.Combine(Root, "keepalive-history");
+        if (Directory.Exists(history))
+        {
+            if ((File.GetAttributes(history) & FileAttributes.ReparsePoint) != 0) throw new IOException("History directory link rejected");
+            foreach (var file in Directory.EnumerateFiles(history, "history-*.jsonl")) File.Delete(file);
+            if (!Directory.EnumerateFileSystemEntries(history).Any()) Directory.Delete(history);
         }
         if (!Directory.EnumerateFileSystemEntries(Root).Any()) Directory.Delete(Root);
         return true;

@@ -55,16 +55,17 @@ internal static class Program
                 }
             }
             if (args[0] == "prepare") return 0;
-            if (existing == null) return 0; // Fresh install never opts the user into startup.
-            if (command == null || exec == null) return 20;
             if (args[0] == "uninstall")
             {
                 // An old uninstaller must not remove a task migrated to a newer copy elsewhere.
-                if (SamePath(command, Path.Combine(target, "NufeCampus.Agent.exe")) || ownScheduled)
+                if (command != null && (SamePath(command, Path.Combine(target, "NufeCampus.Agent.exe")) || ownScheduled))
                     await StartupTask.SetAsync(false, command, deadline.Token, testId, taskName: configuredName);
                 File.Delete(pending);
+                if (args.Contains("--delete-user-data")) new LocalStore(root).RemoveOwnedData();
                 return 0;
             }
+            if (existing == null) return 0; // Fresh install never opts the user into startup.
+            if (command == null || exec == null) return 20;
             string filename = Path.GetFileName(command.Trim('"'));
             if (filename is not ("NufeCampus.Agent.exe" or "NufeCampus.Scheduled.exe")) return 20;
             string agent = Path.Combine(target, filename);
