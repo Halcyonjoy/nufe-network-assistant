@@ -59,7 +59,7 @@ Name: "{userprograms}\NUFE Campus\卸载 NUFE Campus"; Filename: "{uninstallexe}
 Name: "{userdesktop}\NUFE Campus"; Filename: "{app}\NufeCampus.App.exe"; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon; Check: not IsIsolated
 
 [Run]
-Filename: "{app}\NufeCampus.App.exe"; Description: "打开 NUFE Campus"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent unchecked; Check: not IsIsolated
+Filename: "{app}\NufeCampus.App.exe"; Description: "打开 NUFE Campus"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent unchecked; Check: not IsIsolated and not IsUpdate
 
 [Code]
 var DeleteUserData: Boolean;
@@ -118,6 +118,11 @@ end;
 function IsIsolated: Boolean;
 begin
   Result := ExpandConstant('{param:TESTROOT|}') <> '';
+end;
+
+function IsUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATE|0}') = '1';
 end;
 
 function InstallationId(Param: String): String;

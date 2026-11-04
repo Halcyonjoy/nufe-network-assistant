@@ -13,6 +13,14 @@ using NufeCampus.Windows;
 var checks = new List<(string Name, bool Passed)>();
 Console.WriteLine("Runtime " + Environment.Version);
 void Check(string name, bool success) { checks.Add((name, success)); Console.WriteLine($"{(success ? "PASS" : "FAIL")} {name}"); }
+if (args.Contains("--updates-only")) return await UpdateChecks.RunAsync();
+if (args.Contains("--release-check-only"))
+{
+    using var releaseHttp = ReleaseUpdates.CreateClient(); using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var release = await new ReleaseUpdates(releaseHttp).CheckAsync(limit.Token);
+    Console.WriteLine($"PASS public latest release lookup: {release.Tag}, {release.Size} bytes; installer not downloaded or executed");
+    return 0;
+}
 if (args.Contains("--remove-data-only"))
 {
     string dataRoot = LocalStore.ValidateTestRoot(Path.Combine(Path.GetTempPath(), "NufeCampus-test-" + Guid.NewGuid().ToString("N")));

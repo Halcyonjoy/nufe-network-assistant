@@ -73,7 +73,7 @@ public partial class MainWindow
             "devices" => ["在线设备", "绑定设备", "白名单保护"],
             "records" => ["上网记录", "账号与账单", "业务记录"],
             "services" => ["运营商管理", "报停与复通"],
-            "settings" => ["校园网账号", "运行偏好", "诊断与备份", "联网与测速"],
+            "settings" => ["校园网账号", "运行偏好", "诊断与备份", "联网与测速", "软件更新"],
             _ => []
         };
         for (int i = 0; i < labels.Length; i++)
@@ -97,7 +97,7 @@ public partial class MainWindow
         if (navigationGroup == "overview") { MainTabs.SelectedIndex = 0; return; }
         if (navigationGroup == "keepalive") { MainTabs.SelectedItem = KeepAliveHistoryTab; return; }
         int section = selectedSections[navigationGroup];
-        if (navigationGroup == "settings") { MainTabs.SelectedIndex = new[] { 1, 2, 3, 6 }[section]; return; }
+        if (navigationGroup == "settings") { if (section == 4) MainTabs.SelectedItem = UpdateTab; else MainTabs.SelectedIndex = new[] { 1, 2, 3, 6 }[section]; return; }
         if (navigationGroup == "devices" && section == 2) { MainTabs.SelectedIndex = 5; return; }
         EnsureSelfPage();
         int page = navigationGroup switch { "devices" => section == 0 ? 0 : 4, "records" => new[] { 1, 2, 5 }[section], _ => section == 0 ? 3 : 6 };

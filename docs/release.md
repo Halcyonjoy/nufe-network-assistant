@@ -16,6 +16,6 @@
 
 版本统一在Directory.Build.props设置，安装脚本从该文件读取，不手改多份版本。运行build.ps1后使用installer/build-installer.ps1制作当前用户安装程序；安装EXE及SHA256由脚本输出到dist。发布目录需包含LICENSE、THIRD-PARTY-NOTICES.md及licenses；依赖/运行时变更时重新核对许可声明。
 
-安装和升级不执行保活任务；新安装不自动创建任务。发布前维护者仍应手动确认目标Windows版本、DPI与真实校园环境。当前签名和自动更新未配置，不宣称安装包已签名或跨设备兼容已完成。
+安装和升级不执行保活任务；新安装不自动创建任务。发布前维护者仍应手动确认目标Windows版本、DPI与真实校园环境。程序支持手动检查 GitHub 最新正式版并下载、校验、启动覆盖安装；安装包必须命名为 `NUFE-Campus-Setup-<版本>-x64.exe`，并提供 GitHub asset SHA256 digest 或同名 `.sha256` 文件。签名尚未配置，不宣称安装包已签名或跨设备兼容已完成。
 
 CI不自动发布Release。发布时使用独立版本标签，确认源码提交、安装包版本与校验值一致，再上传安装EXE和SHA256附件；同一版本不反复替换安装包。

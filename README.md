@@ -126,6 +126,8 @@
 
 新版本及安装说明见[最新 Release](https://github.com/Halcyonjoy/nufe-network-assistant/releases/latest)。Release 页面中的 `Source code` 是源码，不是安装程序；需要自行构建时请参考[开发指南](docs/development.md)。
 
+包含更新功能的版本可在“设置 → 软件更新”点击“检查更新”，查看最新正式版说明并选择“下载并安装更新”。程序下载本仓库的 Windows x64 安装包并核对 SHA256，校验通过后关闭前台、打开安装程序，安装结束后重新打开程序。账号配置、加密凭据和保活策略保留；安装与升级不主动执行保活任务。下载可取消，失败或取消时清理下载文件；安装结束后清理更新目录，异常中断的残留在后续启动时清理（跳过仍在使用或刚创建的目录）。更新检查仅向 GitHub 请求公开版本信息，不发送校园网凭据。首次升级到具备该入口的版本，仍需手动下载安装。
+
 ### 下载与运行时的安全提示
 
 当前发布的 v1.1.0 安装包未进行代码签名。浏览器或 Windows 可能提示“下载不常见”“未知发布者”或要求进一步确认；新程序尚未建立下载信誉也可能触发此类提示。相关机制见[微软说明](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation)和 [Chrome 说明](https://support.google.com/chrome/answer/6261569?hl=zh-Hans)。

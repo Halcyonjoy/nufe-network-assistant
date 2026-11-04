@@ -22,6 +22,9 @@ SDK不在PATH时向脚本传`-Dotnet 'PATH/TO/dotnet.exe'`。免安装输出为a
 | 表单、HTTP、平台写入与导出 | SelfChecks、PlatformChecks |
 | 多账号、DPAPI、白名单与兼容 | FeatureChecks |
 | 当前接口与网速 | NetworkChecks |
+| 用户数据移除范围 | WindowsChecks --remove-data-only |
+| 更新版本解析、SHA256 与临时文件清理 | WindowsChecks --updates-only（合成安装包，不执行安装） |
+| GitHub 公开最新版本查询 | WindowsChecks --release-check-only（联网只读，不下载或安装） |
 | 前台只读契约 | KeepAliveChecks --foreground-only |
 | 每次保活记录、保留范围及单次注销保护 | KeepAliveChecks --history-only |
 | 计划任务主进程与子工具的记录传递 | KeepAliveChecks --history-process-only PATH/TO/PACKAGE（合成离校根目录，不配置真实任务） |
