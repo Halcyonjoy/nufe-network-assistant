@@ -25,11 +25,16 @@ internal static class Program
             if (scheduled && Stopped()) return 0;
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(58));
             AgentResponse reply;
+            KeepAliveRun? history = null;
             if (AgentLifetime.IsRunning(root))
             {
+                var forwarded = scheduled ? new KeepAliveRunBuilder(KeepAliveSource.Scheduler) : null;
+                forwarded?.Step("forwarded_to_agent");
                 // Never fall back to a competing runner when a live Agent cannot answer.
                 reply = await AgentPipe.CallAsync(LocalStore.PipeName + LocalStore.TestSuffix(root),
                     args[0] == "--status" ? "query" : "authenticate_guarded", timeout.Token);
+                forwarded?.Observe(reply.Status.Phase, reply.Status.Issue);
+                history = forwarded?.Finish();
             }
             else
             {
@@ -41,7 +46,8 @@ internal static class Program
                 if (args[0] == "--status") reply = await OneShotAuthentication.QueryAsync(store, portal, network, timeout.Token);
                 else
                 {
-                    var engine = new KeepAliveEngine(store, portal, network, _ => { }, quotaRecovery: root == null ? QuotaWorker.RunAsync : null);
+                    var engine = new KeepAliveEngine(store, portal, network, _ => { }, quotaRecovery: root == null ? QuotaWorker.RunAsync : null,
+                        historySource: scheduled ? KeepAliveSource.Scheduler : null, historySink: run => history = run);
                     if (scheduled)
                     {
                         if (store.ReadSettings().ScheduledStopped)
@@ -61,6 +67,7 @@ internal static class Program
                     }
                 }
             }
+            if (scheduled) reply = reply with { Run = history };
             Console.WriteLine(JsonSerializer.Serialize(reply, AppJson.Default.AgentResponse));
             if (reply.Status.Phase == "off_campus") return 3;
             return reply.Ok ? 0 : 1;

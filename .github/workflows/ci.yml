@@ -34,7 +34,7 @@ jobs:
             dotnet run --project "checks/$project" -c Release --no-build
             if ($LASTEXITCODE -ne 0) { throw "$project failed" }
           }
-          foreach ($mode in @('--foreground-only','--observation-settings-only')) {
+          foreach ($mode in @('--foreground-only','--observation-settings-only','--history-only')) {
             dotnet run --project checks/KeepAliveChecks -c Release --no-build -- $mode
             if ($LASTEXITCODE -ne 0) { throw "$mode failed" }
           }

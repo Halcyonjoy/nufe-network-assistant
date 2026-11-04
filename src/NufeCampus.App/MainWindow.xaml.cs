@@ -23,7 +23,7 @@ public partial class MainWindow : Window
     public MainWindow(LocalStore store, string? testRoot)
     {
         InitializeComponent(); this.store = store; this.testRoot = testRoot; pipe = LocalStore.PipeName + LocalStore.TestSuffix(testRoot);
-        InitializeFeatures(); InitializeShell();
+        InitializeFeatures(); InitializeShell(); InitializeKeepAliveHistory();
         Closing += WindowClosing;
         if (testRoot != null) { Title = "NUFE Campus · 隔离测试"; ModeNote.Text = "隔离测试实例\n不访问校园网，不修改计划任务。"; }
         Loaded += async (_, _) =>

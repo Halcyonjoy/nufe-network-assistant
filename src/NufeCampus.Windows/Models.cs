@@ -55,13 +55,15 @@ public sealed record AgentStatus
     public string ServerMessage { get; set; } = "";
     public DateTimeOffset? FailureAt { get; set; }
 }
-public sealed record AgentResponse(bool Ok, AgentStatus Status, string Code = "ok");
+public sealed record AgentResponse(bool Ok, AgentStatus Status, string Code = "ok",
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] KeepAliveRun? Run = null);
 [JsonSerializable(typeof(Settings))]
 [JsonSerializable(typeof(SecretPair))]
 [JsonSerializable(typeof(Dictionary<string, SecretPair>))]
 [JsonSerializable(typeof(PreferencesBackup))]
 [JsonSerializable(typeof(AgentRequest))]
 [JsonSerializable(typeof(AgentResponse))]
+[JsonSerializable(typeof(KeepAliveRun))]
 [JsonSerializable(typeof(AgentStatus))]
 [JsonSerializable(typeof(AccountVault))]
 public partial class AppJson : JsonSerializerContext { }

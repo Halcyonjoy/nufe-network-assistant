@@ -85,6 +85,7 @@ public partial class MainWindow
     private async void MainTabChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!IsLoaded || e.Source != MainTabs || closed.IsCancellationRequested) return;
+        UpdateHistoryPolling();
         if (MainTabs.SelectedIndex == 0) DrawRates(null, false);
         if (MainTabs.SelectedIndex == 0 && selfPage != null) { await selfPage.RefreshConnectionDataAsync(); return; }
         if (MainTabs.SelectedItem != SelfTab) return;

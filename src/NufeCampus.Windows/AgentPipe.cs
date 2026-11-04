@@ -27,7 +27,7 @@ public static class AgentPipe
                 {
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromSeconds(60));
                     var request = JsonSerializer.Deserialize(await ReadAsync(pipe, deadline.Token), AppJson.Default.AgentRequest);
-                    if (request?.Command is not ("status" or "pause" or "resume" or "reload" or "logout" or "retry" or "stop" or "authenticate_once" or "authenticate_resume" or "auto_recover" or "reauthenticate" or "query" or "authenticate_guarded")) { rejected(); return; }
+                    if (request?.Command is not ("status" or "pause" or "resume" or "reload" or "logout" or "logout_once" or "retry" or "stop" or "authenticate_once" or "authenticate_resume" or "auto_recover" or "reauthenticate" or "query" or "authenticate_guarded")) { rejected(); return; }
                     var reply = await dispatch(request.Command, deadline.Token);
                     await WriteAsync(pipe, JsonSerializer.SerializeToUtf8Bytes(reply, AppJson.Default.AgentResponse), deadline.Token);
                 }

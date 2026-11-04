@@ -60,13 +60,14 @@ public partial class MainWindow
         var names = new Dictionary<string, (string Title, string English)>
         {
             ["overview"] = ("网络概览", "OVERVIEW"),
+            ["keepalive"] = ("保活记录", "KEEPALIVE HISTORY"),
             ["devices"] = ("我的设备", "DEVICES"),
             ["records"] = ("用量与记录", "ACTIVITY"),
             ["services"] = ("业务管理", "SERVICES"),
             ["settings"] = ("设置", "SETTINGS")
         };
         PageTitle.Text = names[group].Title; PageEyebrow.Text = "WORKSPACE / " + names[group].English;
-        SectionNav.Children.Clear(); SectionNavBorder.Visibility = group == "overview" ? Visibility.Collapsed : Visibility.Visible;
+        SectionNav.Children.Clear(); SectionNavBorder.Visibility = group is "overview" or "keepalive" ? Visibility.Collapsed : Visibility.Visible;
         string[] labels = group switch
         {
             "devices" => ["在线设备", "绑定设备", "白名单保护"],
@@ -94,6 +95,7 @@ public partial class MainWindow
     private void SelectSection()
     {
         if (navigationGroup == "overview") { MainTabs.SelectedIndex = 0; return; }
+        if (navigationGroup == "keepalive") { MainTabs.SelectedItem = KeepAliveHistoryTab; return; }
         int section = selectedSections[navigationGroup];
         if (navigationGroup == "settings") { MainTabs.SelectedIndex = new[] { 1, 2, 3, 6 }[section]; return; }
         if (navigationGroup == "devices" && section == 2) { MainTabs.SelectedIndex = 5; return; }

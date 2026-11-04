@@ -26,11 +26,11 @@ internal static class Program
             using var internet = new InternetProbe();
             using var tray = new TrayHost(Pulse, stop, root);
             Func<WifiState> network = root == null ? Wifi.Read : () => new("off_campus");
-            var engine = new KeepAliveEngine(store, portal, network, issue => tray.Notify(Texts.Issue(issue)), internetProbe: root == null ? internet.CheckAsync : null, quotaRecovery: root == null ? QuotaWorker.RunAsync : null);
+            var engine = new KeepAliveEngine(store, portal, network, issue => tray.Notify(Texts.Issue(issue)), internetProbe: root == null ? internet.CheckAsync : null, quotaRecovery: root == null ? QuotaWorker.RunAsync : null, historySource: KeepAliveSource.Agent);
             tray.Command = command => _ = Task.Run(async () =>
             {
                 if (command == "stop") { stop.Cancel(); return; }
-                try { await engine.CommandAsync(command, stop.Token); signals.Writer.TryWrite(false); } catch (OperationCanceledException) { }
+                try { await engine.CommandAsync(command, stop.Token); if (command != "logout_once") signals.Writer.TryWrite(false); } catch (OperationCanceledException) { }
             });
             var worker = Task.Run(async () =>
             {
@@ -60,7 +60,7 @@ internal static class Program
                         if (command == "query") return await OneShotAuthentication.QueryAsync(store, portal, network, requestToken);
                         var reply = await engine.CommandAsync(command, requestToken);
                         if (command == "reload" && intervalChanged.CurrentCount == 0) intervalChanged.Release();
-                        if (command != "status") signals.Writer.TryWrite(false); return reply;
+                        if (command is not ("status" or "logout_once")) signals.Writer.TryWrite(false); return reply;
                     }, () => log.Write(DiagnosticCode.IpcRejected), stop.Token);
                 }
                 catch (OperationCanceledException) { }

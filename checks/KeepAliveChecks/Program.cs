@@ -5,6 +5,8 @@ using NufeCampus.Core;
 using NufeCampus.Windows;
 
 if (args is ["--task-name-only", var setupSupport]) return await TaskNameChecks.RunAsync(setupSupport);
+if (args is ["--history-only"]) return await HistoryChecks.RunAsync();
+if (args is ["--history-process-only", var historyPackage]) return await HistoryChecks.ProcessesAsync(historyPackage);
 
 int passed = 0, failed = 0;
 void Check(string name, bool ok) { Console.WriteLine((ok ? "PASS " : "FAIL ") + name); if (ok) passed++; else failed++; }

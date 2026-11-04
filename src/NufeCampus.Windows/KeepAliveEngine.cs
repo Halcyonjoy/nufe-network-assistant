@@ -19,16 +19,21 @@ public sealed class KeepAliveEngine
     private DateTimeOffset nextAttempt, faultSince;
     private DateTimeOffset nextInternetProbe;
     private string activeFault = "";
+    private readonly KeepAliveSource? historySource;
+    private readonly Action<KeepAliveRun>? historySink;
+    private KeepAliveRunBuilder? activeRun;
     public AgentStatus Status => Volatile.Read(ref status);
-    public KeepAliveEngine(LocalStore store, ICampusPortal portal, Func<WifiState> wifi, Action<string> notify, Func<DateTimeOffset>? clock = null, Func<CancellationToken, Task<bool>>? internetProbe = null, Func<CancellationToken, Task<string>>? quotaRecovery = null)
+    public KeepAliveEngine(LocalStore store, ICampusPortal portal, Func<WifiState> wifi, Action<string> notify, Func<DateTimeOffset>? clock = null, Func<CancellationToken, Task<bool>>? internetProbe = null, Func<CancellationToken, Task<string>>? quotaRecovery = null, KeepAliveSource? historySource = null, Action<KeepAliveRun>? historySink = null)
     {
         this.store = store; this.portal = portal; this.wifi = wifi; this.notify = notify; this.clock = clock ?? (() => DateTimeOffset.UtcNow);
         this.internetProbe = internetProbe; this.quotaRecovery = quotaRecovery;
+        this.historySource = historySource; this.historySink = historySink ?? store.RecordKeepAliveRun;
         var initial = store.ReadSettings(); policy = new(initial.Memory); status = status with { KeepAliveEnabled = initial.Enabled }; log = new(store.Logs); log.Write(DiagnosticCode.Started);
     }
     private void Remember() => store.UpdateSettings(s => s with { Memory = policy.Memory });
     private void Publish(string phase, string issue = "", bool? nufe = null)
     {
+        activeRun?.Observe(phase, issue);
         var old = Status;
         Volatile.Write(ref status, old with
         {
@@ -54,21 +59,24 @@ public sealed class KeepAliveEngine
     }
     public async Task TickAsync(bool networkEvent, CancellationToken token)
     {
-        if (!await gate.WaitAsync(0, token)) return;
+        var run = historySource is { } source ? new KeepAliveRunBuilder(source, networkEvent, clock) : null;
+        if (!await gate.WaitAsync(0, token)) { run?.Observe("busy"); if (run != null) historySink?.Invoke(run.Finish()); return; }
+        activeRun = run;
         var lifetimeToken = token;
         using var automatic = CancellationTokenSource.CreateLinkedTokenSource(token);
         token = automatic.Token;
         Volatile.Write(ref automaticCheck, automatic);
         try
         {
-            if (Volatile.Read(ref pauseWaiters) > 0) return;
+            if (Volatile.Read(ref pauseWaiters) > 0) { run?.Observe("cancelled"); return; }
             if (networkEvent) policy.NetworkRecoveryEvent();
             var settings = store.ReadSettings(); var network = wifi();
             Volatile.Write(ref status, Status with { KeepAliveEnabled = settings.Enabled });
             if (network.Kind != "nufe") { Volatile.Write(ref status, Status with { Authentication = "unknown", CurrentAccount = "", Internet = "unknown" }); Publish(network.Kind == "permission" ? "wifi_permission" : "off_campus", nufe: false); return; }
+            run?.Step("network_confirmed");
             if ((!settings.Enabled || policy.Memory.PausedByTool) && settings.HttpConsent)
             {
-                try { using var readLimit = CancellationTokenSource.CreateLinkedTokenSource(token); readLimit.CancelAfter(TimeSpan.FromSeconds(4)); var observed = await portal.ReadAsync(readLimit.Token); Volatile.Write(ref status, Status with { Authentication = observed.Online ? "online" : "offline", CurrentAccount = observed.Account }); }
+                try { run?.Step("checking_authentication"); using var readLimit = CancellationTokenSource.CreateLinkedTokenSource(token); readLimit.CancelAfter(TimeSpan.FromSeconds(4)); var observed = await portal.ReadAsync(readLimit.Token); run?.Step(observed.Online ? "authentication_online" : "authentication_offline"); Volatile.Write(ref status, Status with { Authentication = observed.Online ? "online" : "offline", CurrentAccount = observed.Account }); }
                 catch (Exception error) when (error is IOException or HttpRequestException or OperationCanceledException or InvalidDataException or System.Text.Json.JsonException) { Volatile.Write(ref status, Status with { Authentication = "unknown", CurrentAccount = "" }); }
             }
             if (!settings.Enabled) { Publish("disabled", nufe: true); return; }
@@ -83,7 +91,9 @@ public sealed class KeepAliveEngine
             if (!store.MatchesActiveProfile(settings, secret)) { Publish("fault", "profile_transition"); return; }
             if (network.Address == null) { Publish("unreachable", "network"); return; }
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromSeconds(55));
+            run?.Step("checking_authentication");
             var current = await portal.ReadAsync(deadline.Token);
+            run?.Step(current.Online ? "authentication_online" : "authentication_offline");
             Volatile.Write(ref status, Status with { CurrentAccount = current.Account, Authentication = current.Online ? "online" : "offline" });
             if (current.Online)
             {
@@ -101,7 +111,7 @@ public sealed class KeepAliveEngine
             if (settings.CredentialIssue is "quota" or "carrier_state" or "campus_missing" or "carrier_account" or "carrier_quota" or "business_rejected" or "auto_offline_suspended") { Publish("fault", settings.CredentialIssue); return; }
             var decision = policy.Evaluate(new(true, true, AuthenticationState.Offline, true), clock());
             if (decision.Work == Work.RequestCredentialRepair) { Publish("fault", settings.CredentialIssue.Length == 0 ? "campus_credentials" : settings.CredentialIssue); return; }
-            if (decision.Work != Work.Authenticate || clock() < nextAttempt) { Publish("offline", activeFault); return; }
+            if (decision.Work != Work.Authenticate || clock() < nextAttempt) { run?.Step("retry_backoff"); Publish("offline", activeFault); return; }
             nextAttempt = clock().AddSeconds(5); Publish("authenticating");
             var result = await AuthenticateTarget(secret, settings, deadline.Token);
             if (result.Success)
@@ -127,25 +137,34 @@ public sealed class KeepAliveEngine
                 Publish("fault", result.Code);
             }
         }
-        catch (OperationCanceledException) when (!lifetimeToken.IsCancellationRequested && Volatile.Read(ref pauseWaiters) > 0) { }
+        catch (OperationCanceledException) when (!lifetimeToken.IsCancellationRequested && Volatile.Read(ref pauseWaiters) > 0) { run?.Observe("cancelled"); }
+        catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested) { run?.Observe("cancelled"); throw; }
         catch (OperationCanceledException) when (!lifetimeToken.IsCancellationRequested) { NetworkFault(); }
         catch (Exception e) when (e is InvalidDataException or System.Text.Json.JsonException or ArgumentException)
         {
             policy.ObserveOutcome(AuthenticationOutcome.TemporaryFailure, clock()); log.Write(DiagnosticCode.ProtocolUnknown); Publish("fault", "unknown_response");
         }
         catch (Exception e) when (e is IOException or System.Net.Http.HttpRequestException) { NetworkFault(); }
-        finally { Volatile.Write(ref automaticCheck, null); gate.Release(); }
+        catch { run?.Step("unexpected_error"); run?.Observe("unconfirmed", "configuration_error"); throw; }
+        finally
+        {
+            activeRun = null;
+            Volatile.Write(ref automaticCheck, null); gate.Release();
+            if (run != null) historySink?.Invoke(run.Finish());
+        }
     }
     private void SuspendAutoOffline() { policy.SuspendAutomaticDeviceOffline(); Remember(); }
     private async Task<LoginResult> AuthenticateTarget(SecretPair secret, Settings settings, CancellationToken token)
     {
         var result = await portal.AuthenticateAsync(secret, settings.Carrier, token);
         if (result.Success || result.Code != "quota" || !settings.AutoOfflineEnabled || settings.OfflineOrder == "manual" || quotaRecovery == null) return result;
+        activeRun?.Step("quota_recovery");
         if (policy.Memory.AutoOfflineSuspended) return new(false, "auto_offline_suspended", QuotaMessage("stopped"));
         if (settings.LastAutomaticOffline is { } last && clock() - last < TimeSpan.FromMinutes(1)) { SuspendAutoOffline(); return new(false, "auto_offline_suspended", "设备处理：一分钟内再次超限，疑似设备重连冲突，已停用自动下线。"); }
         string recovery;
-        try { recovery = await quotaRecovery(token); } catch (Exception error) when (error is OperationCanceledException or IOException or HttpRequestException) { SuspendAutoOffline(); return new(false, "auto_offline_suspended", QuotaMessage("uncertain")); }
-        if (recovery != "freed") { SuspendAutoOffline(); return new(false, "auto_offline_suspended", QuotaMessage(recovery)); }
+        try { recovery = await quotaRecovery(token); } catch (Exception error) when (error is OperationCanceledException or IOException or HttpRequestException) { activeRun?.Step("quota_recovery_failed"); SuspendAutoOffline(); return new(false, "auto_offline_suspended", QuotaMessage("uncertain")); }
+        if (recovery != "freed") { activeRun?.Step("quota_recovery_failed"); SuspendAutoOffline(); return new(false, "auto_offline_suspended", QuotaMessage(recovery)); }
+        activeRun?.Step("quota_recovery_completed"); activeRun?.Step("authentication_requested");
         store.UpdateSettings(s => s with { LastAutomaticOffline = clock() });
         result = await portal.AuthenticateAsync(secret, settings.Carrier, token);
         if (!result.Success) SuspendAutoOffline(); return result;
@@ -161,7 +180,7 @@ public sealed class KeepAliveEngine
     public async Task<AgentResponse> CommandAsync(string command, CancellationToken token)
     {
         if (command == "status") return new(true, Status);
-        bool interrupt = command is "pause" or "logout";
+        bool interrupt = command is "pause" or "logout" or "logout_once";
         if (interrupt)
         {
             Interlocked.Increment(ref pauseWaiters);
@@ -171,6 +190,13 @@ public sealed class KeepAliveEngine
         catch { if (interrupt) Interlocked.Decrement(ref pauseWaiters); throw; }
         try
         {
+            if (command == "logout_once")
+            {
+                var reply = await OneShotLogout.RunAsync(store, portal, wifi, token);
+                Volatile.Write(ref status, reply.Status with { LastRecovery = Status.LastRecovery });
+                if (reply.Ok && reply.Code != "already_offline") log.Write(DiagnosticCode.UserLogout);
+                return reply with { Status = Status };
+            }
             if (command is "authenticate_once" or "authenticate_resume" or "reauthenticate" or "authenticate_guarded")
             {
                 var settings = store.ReadSettings(); var network = wifi();

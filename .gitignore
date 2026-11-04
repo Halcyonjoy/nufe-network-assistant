@@ -27,3 +27,4 @@ settings.json
 accounts.json
 last-check.json
 runner.lock
+keepalive-history/
