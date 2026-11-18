@@ -33,7 +33,7 @@ SDK不在PATH时向脚本传`-Dotnet 'PATH/TO/dotnet.exe'`。免安装输出为a
 | 计划名称存储、迁移、冲突回退及安装维护 | KeepAliveChecks --task-name-only src/NufeCampus.SetupSupport/bin/Release/net10.0-windows/NufeCampus.SetupSupport.dll（先构建解决方案；仅操作禁用触发器的隔离任务） |
 | Agent/IPC/任务真实隔离边界 | WindowsChecks --package artifacts/preview-win-x64 |
 | CLI及两种策略安装维护 | KeepAliveChecks --package artifacts/preview-win-x64 |
-| 安装/升级/卸载 | PackageChecks dist/NUFE-Campus-Setup-1.0.0-x64.exe PATH/TO/EVIDENCE |
+| 安装/升级/卸载 | PackageChecks dist/NUFE-Campus-Setup-<版本>-x64.exe PATH/TO/EVIDENCE |
 | 个人官方XLS交叉核对 | HistoryExportChecks --verify-file PATH/TO/OFFICIAL.xls；人工选择，不进入CI |
 
 例如`dotnet run --project checks/PolicyChecks -c Release`。`tools/Test.ps1`运行较完整检查并可能配置隔离任务；日常按改动选相关专项，避免重复整套测试。CI只构建并执行离线/合成检查，不发布、不安装、不使用真实校园账号，也不视为真实校园网验收。

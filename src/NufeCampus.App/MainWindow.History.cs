@@ -115,34 +115,4 @@ public partial class MainWindow
         "forwarded_to_agent" => "发现常驻后台，将请求交由后台处理",
         _ => "执行遇到异常，结果未确认"
     };
-    private async void LogoutOnceClick(object sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmAsync("注销本机认证", "仅注销当前配置账号在本机的校园网认证，不暂停或关闭保活。保活已启用时，可能很快自动重新认证。其他账号在线时不会注销。确认继续？")) return;
-        await Run(async () =>
-        {
-            AgentResponse result;
-            var running = await AgentForConfiguration();
-            if (running != null && sessionCredential == null)
-            {
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(closed.Token); timeout.CancelAfter(TimeSpan.FromSeconds(20));
-                result = await AgentPipe.CallAsync(pipe, "logout_once", timeout.Token);
-            }
-            else
-            {
-                if (running != null) throw new UserNotice("后台仍在运行，请先核对正在使用的账号。");
-                var session = sessionCredential; string carrier = sessionCarrier; bool consent = HttpConsent.IsChecked == true;
-                result = await Task.Run(async () =>
-                {
-                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(closed.Token); timeout.CancelAfter(TimeSpan.FromSeconds(65));
-                    using var lease = await RunnerLease.AcquireAsync(store, timeout.Token);
-                    using var portal = new CampusPortal();
-                    return await OneShotLogout.RunAsync(store, portal, testRoot == null ? Wifi.Read : () => new("off_campus"), timeout.Token,
-                        session, session == null ? null : carrier, consent);
-                }, closed.Token);
-            }
-            Feedback.Text = result.Ok ? result.Code == "already_offline" ? "本机当前未认证，无需注销。保活设置保持原状态。" : "本机认证已注销。保活设置保持原状态，已启用的保活可能自动重新认证。"
-                : result.Code == "logout_unconfirmed" ? "注销结果未确认，未自动重发。请刷新认证状态；保活设置保持原状态。" : Texts.Issue(result.Code);
-            await RefreshStatus();
-        });
-    }
 }

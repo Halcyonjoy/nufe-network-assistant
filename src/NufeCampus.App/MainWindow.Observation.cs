@@ -1,3 +1,5 @@
+using System.IO;
+using System.Text.Json;
 using System.Net.Http;
 using NufeCampus.Windows;
 
@@ -124,5 +126,29 @@ public partial class MainWindow
                 Issue = snapshot.Reply.Status.Issue.Length > 0 ? snapshot.Reply.Status.Issue : snapshot.Settings.CredentialIssue
             }
         };
+    }
+    private async Task RefreshStatus()
+    {
+        if (refreshing || removed || closed.IsCancellationRequested) return;
+        refreshing = true;
+        try
+        {
+            var reply = await ReadForegroundStatus();
+            if (closed.IsCancellationRequested) return;
+            PhaseText.Text = Texts.Phase(reply.Status.Phase); IssueText.Text = Texts.Issue(reply.Status.Issue);
+            RenderFeatureStatus(reply.Status);
+            KeeperText.Text = reply.Status.Paused ? "保活：已暂停，跨重启保留" : reply.Status.KeepAliveEnabled ? "保活：已启用，按网络状态自动检查" : "保活：已关闭";
+            RecoveryText.Text = reply.Status.LastRecovery is { } time ? "最近恢复：" + time.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm:ss") : "最近恢复：尚无记录";
+        }
+        catch (Exception e) when (e is IOException or TimeoutException or OperationCanceledException or JsonException)
+        {
+            if (!closed.IsCancellationRequested)
+            {
+                var unknown = new AgentStatus { Phase = "unreachable", Issue = "network", HasCredentials = foregroundHasCredentials, CheckedAt = DateTimeOffset.UtcNow };
+                PhaseText.Text = "实时状态暂不可用"; IssueText.Text = "稍后自动重试；未启动保活或提交认证。";
+                RenderFeatureStatus(unknown); KeeperText.Text = "保活：状态尚未确认";
+            }
+        }
+        finally { refreshing = false; }
     }
 }

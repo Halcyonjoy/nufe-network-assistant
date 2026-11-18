@@ -3,7 +3,7 @@
 | 项目 | 职责 |
 |---|---|
 | NufeCampus.Core | 无平台依赖的保活策略与策略记忆 |
-| NufeCampus.Windows | 校园协议、DPAPI、本机存储、网卡读取、IPC、任务计划与互斥 |
+| NufeCampus.Windows | 校园协议、DPAPI、本机存储、网卡读取、IPC、任务计划、保活记录与更新下载 |
 | NufeCampus.SelfService | 自助会话、表单解析、业务确认、历史/导出与配额策略 |
 | NufeCampus.App | WPF前台、首次引导、账号配置、自助页面及独立只读观测 |
 | NufeCampus.Agent | NativeAOT常驻保活、托盘、网络变化/恢复事件 |
@@ -12,7 +12,24 @@
 | NufeCampus.SelfWorker | 按需自助配额处理进程，避免HTML解析常驻Agent |
 | NufeCampus.SetupSupport | 安装维护、等待进程退出、任务暂停/迁移/移除 |
 
-前台MainWindow按Shell、Features、Onboarding、Observation、KeepAlive、Lifetime拆分；SelfPage按业务平台和白名单拆分。入口文件负责组装，协议与持久化规则集中在Windows/SelfService层。
+入口文件负责组装，协议与持久化规则集中在Windows/SelfService层。前台MainWindow沿用partial类，按职责查找文件：
+
+| 文件 | 职责 |
+|---|---|
+| MainWindow.xaml.cs | 窗口初始化、公共操作状态和错误提示 |
+| MainWindow.Shell.cs | 导航、状态展示与确认框 |
+| MainWindow.Preferences.cs | 加载偏好、校验输入及保存账号配置 |
+| MainWindow.Connection.cs | 后台通信、启动停止、认证与注销操作 |
+| MainWindow.Data.cs | 备份导入导出、诊断导出和本机数据移除 |
+| MainWindow.Onboarding.cs | 首次引导、多账号与仅本次凭据 |
+| MainWindow.Observation.cs | 独立的前台认证状态和外网探测 |
+| MainWindow.KeepAlive.cs | 保活策略、间隔与任务名称配置 |
+| MainWindow.Features.cs | 实时网速、自助页面组装与功能状态 |
+| MainWindow.History.cs | 保活执行记录的读取、展示及刷新 |
+| MainWindow.Updates.cs | 更新检查、下载进度及安装入口 |
+| MainWindow.Lifetime.cs | 关闭窗口与完整退出 |
+
+SelfPage按业务平台和白名单拆分。界面事件处理留在App；校园业务、任务和数据规则不放入窗口入口文件。
 
 ## 观测与保活
 
@@ -22,12 +39,18 @@ Agent与Windows任务计划二选一。Agent常驻并响应网络变化/正常�
 
 Cli仅接受`--status`或`--authenticate`一个参数。存在Agent时通过当前用户管道协调，否则认证执行前获取写锁。状态查询不解密密码；认证一次不启用保活、不解除暂停、不顶替其他账号。
 
+后台每次执行生成一条保活记录；计划任务由Scheduled汇总Cli回传的过程，避免父子进程重复写入。记录只保存固定操作和结果码，保留7天、最多5MB；前台查看最近300次，查看记录不触发认证检查。
+
 ## 账号与业务
 
 未保存账号时主动引导，默认仅本次使用。选择保存才用当前用户DPAPI；Cookie在内存中。账号切换保留全局间隔/启动设置，各账号错误与白名单独立。凭据错误和手动暂停持久保留。
 
-只在确认NUFE-STU后向固定校园认证主机发送请求。认证在线但外网失败不会下线重登。自助写入重新取表单，校验账号与字段后生成45秒单次确认；未知结果不重试。本机下线或报停前持久暂停。自动配额处理需要明确启用、同意及非空白名单，保护本机且每轮最多一台。
+只在确认NUFE-STU后向固定校园认证主机发送请求。认证在线但外网失败不会下线重登。自助写入重新取表单，校验账号与字段后生成45秒单次确认；未知结果不重试。“注销本机认证”校验当前账号及本机信息、单次注销并读回结果，保留保活状态；“本机下线并暂停”和报停会先持久暂停。自动配额处理需要明确启用、同意及非空白名单，保护本机且每轮最多一台。
 
 ## 生命周期
 
 关闭窗口仅结束前台；常驻模式完整退出结束本次Agent，不改变登录启动偏好；任务模式完整退出持久停止并移除周期任务。两者都不注销校园连接。安装维护暂停自有任务并等待有限请求结束，保留原任务启用状态与触发器；卸载只移除仍指向当前目录的任务，默认保留用户数据。
+
+卸载时勾选“同时删除用户数据”，会在停止程序、移除自有任务后清理配置、加密凭据、日志及保活记录；手动导出的文件保留。
+
+更新由前台手动发起。ReleaseUpdates统一处理版本、安装包命名与下载地址规则，通过GitHub公开API查询，限流时回退到最新Release页面。下载限制大小并验证SHA256，校验通过后才交给UpdateCache启动安装。独立临时目录保存本次下载和安装辅助脚本，安装结束后清理；后续启动清理未被占用的过期残留。更新请求不使用校园凭据。

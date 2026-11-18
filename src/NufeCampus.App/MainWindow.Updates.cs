@@ -77,5 +77,5 @@ public partial class MainWindow
         });
     }
     private void CancelUpdateClick(object sender, RoutedEventArgs e) => updateCancellation?.Cancel();
-    private void OpenReleaseClick(object sender, RoutedEventArgs e) => OpenUrl(availableUpdate?.Page ?? "https://github.com/Halcyonjoy/nufe-network-assistant/releases/latest");
+    private void OpenReleaseClick(object sender, RoutedEventArgs e) => OpenUrl(availableUpdate?.Page ?? ReleaseUpdates.LatestPage);
 }

@@ -132,7 +132,7 @@ public partial class MainWindow
     {
         if (sessionCredential != null) { await AuthenticateSessionOnce(); return; }
         await EnsureAgent(); var status = await Call("status");
-        if (status.Status.ProtocolVersion < 2) throw new UserNotice("当前运行的是旧版后台，不支持新认证入口。新版位于独立预览目录；本次不会替换或重启旧后台。");
+        if (status.Status.ProtocolVersion < 2) throw new UserNotice("当前后台版本过旧，请先更新并重新启动后台，再进行认证。");
         var result = await Call(resume ? "authenticate_resume" : "authenticate_once", 60);
         RenderFeatureStatus(result.Status); PhaseText.Text = Texts.Phase(result.Status.Phase); IssueText.Text = Texts.Issue(result.Status.Issue);
         Feedback.Text = result.Ok ? resume && result.Status.KeepAliveEnabled ? "认证已确认，保活已恢复。" : !result.Status.KeepAliveEnabled ? "认证已确认。后台保活未启用，可在运行偏好中设置。" : "认证已确认，原保活暂停状态保留。" : Texts.Issue(result.Code);

@@ -7,12 +7,14 @@ namespace NufeCampus.Windows;
 
 public sealed record ReleaseUpdate(Version Version, string Tag, string Notes, Uri Installer, long Size, string? Sha256, Uri? Checksum)
 {
-    public string Page => "https://github.com/Halcyonjoy/nufe-network-assistant/releases/tag/" + Uri.EscapeDataString(Tag);
+    public string Page => ReleaseUpdates.RepositoryUrl + "/releases/tag/" + Uri.EscapeDataString(Tag);
 }
 
 // Public GitHub requests never use campus credentials or the campus HTTP client.
 public sealed class ReleaseUpdates(HttpClient client)
 {
+    public const string RepositoryUrl = "https://github.com/Halcyonjoy/nufe-network-assistant";
+    public const string LatestPage = RepositoryUrl + "/releases/latest";
     public const string LatestApi = "https://api.github.com/repos/Halcyonjoy/nufe-network-assistant/releases/latest";
     public const long MaxInstallerSize = 250L * 1024 * 1024;
     public static HttpClient CreateClient() => new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = Timeout.InfiniteTimeSpan };
@@ -30,15 +32,14 @@ public sealed class ReleaseUpdates(HttpClient client)
     private async Task<ReleaseUpdate> CheckFromReleasePageAsync(CancellationToken token)
     {
         // The public latest permalink avoids requiring a GitHub token on shared/rate-limited networks.
-        using var page = await GetAsync(new("https://github.com/Halcyonjoy/nufe-network-assistant/releases/latest"), token);
+        using var page = await GetAsync(new(LatestPage), token);
         page.EnsureSuccessStatusCode();
-        const string prefix = "https://github.com/Halcyonjoy/nufe-network-assistant/releases/tag/";
+        const string prefix = RepositoryUrl + "/releases/tag/";
         string address = page.RequestMessage?.RequestUri?.AbsoluteUri ?? "";
         if (!address.StartsWith(prefix, StringComparison.Ordinal)) throw new InvalidDataException("无法确认最新 Release 版本，请稍后重试。");
         string tag = Uri.UnescapeDataString(address[prefix.Length..]);
-        string number = tag.StartsWith('v') ? tag[1..] : tag;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(number, @"^\d+\.\d+\.\d+$") || !Version.TryParse(number, out var version)) throw new InvalidDataException("版本号格式不受支持。");
-        var installer = new Uri("https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/" + Uri.EscapeDataString(tag) + $"/NUFE-Campus-Setup-{number}-x64.exe");
+        var (number, version) = ParseVersion(tag);
+        var installer = DownloadUrl(tag, InstallerName(number));
         using var asset = await GetAsync(installer, token, HttpMethod.Head); asset.EnsureSuccessStatusCode();
         long size = asset.Content.Headers.ContentLength ?? 0;
         if (size is <= 0 or > MaxInstallerSize) throw new InvalidDataException("无法确认安装包大小，请打开 Release 页面手动下载。");
@@ -50,9 +51,8 @@ public sealed class ReleaseUpdates(HttpClient client)
     {
         if (root.GetProperty("draft").GetBoolean() || root.GetProperty("prerelease").GetBoolean()) throw new InvalidDataException("更新不是正式版本。");
         string tag = root.GetProperty("tag_name").GetString() ?? "";
-        string number = tag.StartsWith('v') ? tag[1..] : tag;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(number, @"^\d+\.\d+\.\d+$") || !Version.TryParse(number, out var version)) throw new InvalidDataException("版本号格式不受支持。");
-        string name = $"NUFE-Campus-Setup-{number}-x64.exe";
+        var (number, version) = ParseVersion(tag);
+        string name = InstallerName(number);
         var assets = root.GetProperty("assets").EnumerateArray().ToArray();
         var matches = assets.Where(a => a.GetProperty("name").GetString() == name).ToArray();
         if (matches.Length != 1) throw new InvalidDataException("此版本缺少唯一的 Windows x64 安装包。");
@@ -61,9 +61,9 @@ public sealed class ReleaseUpdates(HttpClient client)
         if (size is <= 0 or > MaxInstallerSize) throw new InvalidDataException("安装包大小不受支持。");
         Uri AssetUrl(JsonElement item, string filename)
         {
-            string expected = "https://github.com/Halcyonjoy/nufe-network-assistant/releases/download/" + Uri.EscapeDataString(tag) + "/" + filename;
-            if (item.GetProperty("browser_download_url").GetString() != expected) throw new InvalidDataException("更新下载地址不属于本仓库。");
-            return new(expected);
+            var expected = DownloadUrl(tag, filename);
+            if (item.GetProperty("browser_download_url").GetString() != expected.AbsoluteUri) throw new InvalidDataException("更新下载地址不属于本仓库。");
+            return expected;
         }
         var installer = AssetUrl(asset, name);
         string? digest = asset.TryGetProperty("digest", out var field) ? field.GetString() : null;
@@ -110,6 +110,14 @@ public sealed class ReleaseUpdates(HttpClient client)
         }
         finally { if (File.Exists(partial)) File.Delete(partial); }
     }
+    private static (string Number, Version Version) ParseVersion(string tag)
+    {
+        string number = tag.StartsWith('v') ? tag[1..] : tag;
+        if (!System.Text.RegularExpressions.Regex.IsMatch(number, @"^\d+\.\d+\.\d+$") || !Version.TryParse(number, out var version)) throw new InvalidDataException("版本号格式不受支持。");
+        return (number, version);
+    }
+    private static string InstallerName(string number) => $"NUFE-Campus-Setup-{number}-x64.exe";
+    private static Uri DownloadUrl(string tag, string filename) => new(RepositoryUrl + "/releases/download/" + Uri.EscapeDataString(tag) + "/" + filename);
     private static bool ValidHash(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
     private async Task<HttpResponseMessage> GetAsync(Uri uri, CancellationToken token, HttpMethod? method = null)
     {
