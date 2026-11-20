@@ -18,6 +18,6 @@ public partial class SelfPage
         }
         catch { SelfFeedback.Text = "白名单未能保存，请检查账号是否切换或名单是否已满。"; }
     }
-    private void OnlineWhitelistClick(object s, RoutedEventArgs e) => AddWhitelist((DevicesGrid.SelectedItem as OnlineDevice)?.Mac);
-    private void BoundWhitelistClick(object s, RoutedEventArgs e) => AddWhitelist((BoundGrid.SelectedItem as BoundDevice)?.Mac);
+    private void OnlineWhitelistClick(object s, RoutedEventArgs e) => AddWhitelist((DevicesGrid.SelectedItem as DeviceRow<OnlineDevice>)?.Device.Mac);
+    private void BoundWhitelistClick(object s, RoutedEventArgs e) => AddWhitelist((BoundGrid.SelectedItem as DeviceRow<BoundDevice>)?.Device.Mac);
 }

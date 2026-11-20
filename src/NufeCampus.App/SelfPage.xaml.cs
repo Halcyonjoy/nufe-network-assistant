@@ -29,6 +29,10 @@ public partial class SelfPage : System.Windows.Controls.UserControl, IDisposable
     private bool prefetched;
     private int filterVersion;
     private int boundPage = 1, boundTotal;
+    private sealed record DeviceRow<T>(T Device, bool IsLocal)
+    {
+        public string LocalLabel => IsLocal ? "本机" : "";
+    }
     public static readonly DependencyProperty ProtectedMacsViewProperty = DependencyProperty.Register(nameof(ProtectedMacsView), typeof(string[]), typeof(SelfPage), new PropertyMetadata(Array.Empty<string>()));
     public string[] ProtectedMacsView { get => (string[])GetValue(ProtectedMacsViewProperty); private set => SetValue(ProtectedMacsViewProperty, value); }
     public bool IsWorking => busy;
@@ -155,12 +159,32 @@ public partial class SelfPage : System.Windows.Controls.UserControl, IDisposable
         if (!SessionOnly && RememberSelf.IsChecked == true && secret.Account == store.ReadSecret()?.Account) store.SaveSharedCredential(secret);
         LoggedIn(); await Prefetch(token);
     });
-    private async Task Devices(CancellationToken token) { var rows = await client.OnlineAsync(token); ProtectedMacsView = store.ReadSettings().ProtectedMacs; DevicesGrid.ItemsSource = rows; var own = testRoot == null ? Wifi.Read() : new WifiState("nufe", "192.0.2.1", "001122334455"); SessionLoaded?.Invoke(client.AuthenticatedAccount, rows.SingleOrDefault(d => Wifi.NormalizeMac(d.Mac) == Wifi.NormalizeMac(own.Mac ?? "") && d.Ip == own.Address)); DevicesUpdated?.Invoke(rows); if (pendingWrite == "devices") pendingWrite = ""; SelfFeedback.Text = "在线设备已刷新。此列表仅表示当前在线会话，不是全部绑定设备。"; }
+    private WifiState ReadLocalWifi() => testRoot == null ? Wifi.Read() : new("nufe", "192.0.2.1", "001122334455");
+    private static string? LocalMac(WifiState wifi) => wifi.Kind == "nufe" ? QuotaRecovery.StrictMac(wifi.Mac ?? "") : null;
+    private static T? UniqueDevice<T>(IEnumerable<T> devices, Func<T, bool> matches) where T : class
+    {
+        var matching = devices.Where(matches).Take(2).ToArray();
+        return matching.Length == 1 ? matching[0] : null;
+    }
+    private async Task Devices(CancellationToken token)
+    {
+        var rows = await client.OnlineAsync(token);
+        var wifi = await Task.Run(ReadLocalWifi, token);
+        var own = LocalMac(wifi) is { } mac && wifi.Address is { Length: > 0 } address
+            ? UniqueDevice(rows, d => QuotaRecovery.StrictMac(d.Mac) == mac && d.Ip == address)
+            : null;
+        ProtectedMacsView = store.ReadSettings().ProtectedMacs;
+        DevicesGrid.ItemsSource = rows.Select(d => new DeviceRow<OnlineDevice>(d, ReferenceEquals(d, own))).ToArray();
+        SessionLoaded?.Invoke(client.AuthenticatedAccount, own);
+        DevicesUpdated?.Invoke(rows);
+        if (pendingWrite == "devices") pendingWrite = "";
+        SelfFeedback.Text = "在线设备已刷新。此列表仅表示当前在线会话，不是全部绑定设备。";
+    }
     public async Task RefreshConnectionDataAsync() { if (client.Authenticated && !busy) await Run(Devices); }
     private async void DevicesClick(object sender, RoutedEventArgs e) => await Run(t => LoadPage(0, t));
     private async void OfflineClick(object sender, RoutedEventArgs e) => await Run(async token =>
     {
-        if (DevicesGrid.SelectedItem is not OnlineDevice selected) { SelfFeedback.Text = "请选择一台设备。"; return; }
+        if (DevicesGrid.SelectedItem is not DeviceRow<OnlineDevice> { Device: var selected }) { SelfFeedback.Text = "请选择一台设备。"; return; }
         var ticket = await client.PrepareOfflineAsync(selected, token); bool own = testRoot != null ? selected.Mac == "001122334455" : Wifi.NormalizeMac(selected.Mac) == Wifi.NormalizeMac(Wifi.Read().Mac ?? "");
         string mask = selected.Mac.Length > 4 ? "***" + selected.Mac[^4..] : "已隐藏";
         if (!await ConfirmAsync("设备下线确认", $"将下线当前账号的一条在线会话：\nMAC 尾部：{mask}\n登录时间：{selected.LoginTime}\n{(own ? "这是当前电脑，将先持久暂停保活，直到你手动恢复。" : "这不是当前电脑，本机保活设置不变。")}\nHTTP 目的地：10.100.0.3:8080\n确认下线？")) { SelfFeedback.Text = "已取消，未提交。"; return; }
@@ -216,13 +240,23 @@ public partial class SelfPage : System.Windows.Controls.UserControl, IDisposable
     }, true);
     private void CancelClick(object s, RoutedEventArgs e) => operation?.Cancel();
 
-    private async Task Bound(CancellationToken t) { var page = await client.BoundDevicesAsync(boundPage, t); boundTotal = page.Total; BoundGrid.ItemsSource = page.Rows; BoundInfo.Text = $"第 {boundPage} 页 · 共 {page.Total} 条 · 绑定设备不是在线配额"; SelfFeedback.Text = page.Total == 0 ? "没有绑定设备。" : "绑定设备已加载。"; if (pendingWrite == "mac") pendingWrite = ""; }
+    private async Task Bound(CancellationToken t)
+    {
+        var page = await client.BoundDevicesAsync(boundPage, t);
+        var wifi = await Task.Run(ReadLocalWifi, t);
+        var own = LocalMac(wifi) is { } mac ? UniqueDevice(page.Rows, d => QuotaRecovery.StrictMac(d.Mac) == mac) : null;
+        boundTotal = page.Total;
+        BoundGrid.ItemsSource = page.Rows.Select(d => new DeviceRow<BoundDevice>(d, ReferenceEquals(d, own))).ToArray();
+        BoundInfo.Text = $"第 {boundPage} 页 · 共 {page.Total} 条 · 绑定设备不是在线配额";
+        SelfFeedback.Text = page.Total == 0 ? "没有绑定设备。" : "绑定设备已加载。";
+        if (pendingWrite == "mac") pendingWrite = "";
+    }
     private async void BoundClick(object s, RoutedEventArgs e) => await Run(t => LoadPage(4, t));
     private async void BoundPrev(object s, RoutedEventArgs e) => await Run(async t => { if (boundPage > 1) { boundPage--; await Bound(t); } });
     private async void BoundNext(object s, RoutedEventArgs e) => await Run(async t => { if (boundPage * 10 < boundTotal) { boundPage++; await Bound(t); } });
     private async void RemoveMacClick(object s, RoutedEventArgs e) => await Run(async t =>
     {
-        if (BoundGrid.SelectedItem is not BoundDevice device) { SelfFeedback.Text = "请选择一个绑定设备。"; return; }
+        if (BoundGrid.SelectedItem is not DeviceRow<BoundDevice> { Device: var device }) { SelfFeedback.Text = "请选择一个绑定设备。"; return; }
         var ticket = await client.PrepareMacRemovalAsync(device, t);
         if (!await ConfirmAsync("解除 MAC 绑定", "解除此 MAC 绑定（与在线下线不同），可能影响后续认证。MAC：" + device.Mac + "。此接口尚未真实写入验收，确认继续？")) return;
         pendingWrite = "mac"; await client.RemoveMacAsync(ticket, t); await Bound(t); SelfFeedback.Text = "页面已确认移除绑定，未自动断网测试。";

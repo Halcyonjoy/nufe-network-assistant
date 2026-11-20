@@ -162,7 +162,7 @@ public partial class MainWindow
         ConnectionGlyph.Text = status?.Authentication == "online" ? "\uE73E" : status?.Paused == true ? "\uE769" : "\uE701";
         UpdatedText.Text = status == null ? "后台状态未更新" : status.CheckedAt == default ? "尚无检查结果" : "最近检查 · " + status.CheckedAt.ToOffset(TimeSpan.FromHours(8)).ToString("HH:mm:ss");
     }
-    private sealed record OverviewDevice(string Name, string Ip, string LoginTime, string Protection);
+    private sealed record OverviewDevice(string Name, string Ip, string LoginTime, string Protection, string LocalLabel);
     private void RenderOverviewDevices()
     {
         if (overviewDevices == null)
@@ -173,7 +173,8 @@ public partial class MainWindow
         var settings = store.ReadSettings();
         OverviewDevicesGrid.ItemsSource = overviewDevices.Select(d => new OverviewDevice(
             string.IsNullOrWhiteSpace(d.Host) ? (string.IsNullOrWhiteSpace(d.Type) ? "未命名设备" : d.Type) : d.Host,
-            d.Ip, d.LoginTime, QuotaRecovery.StrictMac(d.Mac) is { } mac && settings.ProtectedMacs.Any(m => QuotaRecovery.StrictMac(m) == mac) ? "白名单" : "未加入")).ToArray();
+            d.Ip, d.LoginTime, QuotaRecovery.StrictMac(d.Mac) is { } mac && settings.ProtectedMacs.Any(m => QuotaRecovery.StrictMac(m) == mac) ? "白名单" : "未加入",
+            ReferenceEquals(d, currentSession) ? "本机" : "")).ToArray();
         OverviewDevicesTitle.Text = $"在线设备 · {overviewDevices.Count} 台"; DeviceCountBadge.Text = overviewDevices.Count.ToString();
         OverviewDevicesInfo.Text = $"自助账号 {sessionAccount} · 本次会话缓存，需更新请在设备页刷新。";
     }
