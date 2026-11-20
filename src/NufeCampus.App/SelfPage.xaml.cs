@@ -258,7 +258,7 @@ public partial class SelfPage : System.Windows.Controls.UserControl, IDisposable
     {
         if (BoundGrid.SelectedItem is not DeviceRow<BoundDevice> { Device: var device }) { SelfFeedback.Text = "请选择一个绑定设备。"; return; }
         var ticket = await client.PrepareMacRemovalAsync(device, t);
-        if (!await ConfirmAsync("解除 MAC 绑定", "解除此 MAC 绑定（与在线下线不同），可能影响后续认证。MAC：" + device.Mac + "。此接口尚未真实写入验收，确认继续？")) return;
+        if (!await ConfirmAsync("解除 MAC 绑定", "将向学校自助平台提交解绑并回查结果，可能影响此设备后续认证。MAC：" + device.Mac + "。确认继续？")) return;
         pendingWrite = "mac"; await client.RemoveMacAsync(ticket, t); await Bound(t); SelfFeedback.Text = "页面已确认移除绑定，未自动断网测试。";
     }, true);
 }

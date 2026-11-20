@@ -194,7 +194,15 @@ try
     {
         var wire = new SelfWire(0); using var client = new SelfClient(wire, Own) { Consent = true }; await client.PrepareLoginAsync(default); await client.LoginAsync(a, "", default);
         var bound = await client.BoundDevicesAsync(1, default); Check("Bound devices include offline records without counting them as online sessions", bound.Total == 1 && bound.Rows[0].Mac == "AABBCCDDEEFF");
-        var ticket = await client.PrepareMacRemovalAsync(bound.Rows[0], default); await client.RemoveMacAsync(ticket, default); Check("MAC removal encodes exact MAC and verifies it disappeared", wire.Removals == 1 && (await client.BoundDevicesAsync(1, default)).Total == 0);
+        wire.MissingMacToken = true;
+        var missing = await client.PrepareMacRemovalAsync(bound.Rows[0], default);
+        bool refused = false; try { await client.RemoveMacAsync(missing, default); } catch (SelfException e) { refused = e.Code == "protocol"; }
+        Check("MAC removal sends nothing when the binding page omits the token", refused && wire.Removals == 0);
+
+        wire.MissingMacToken = false;
+        var ticket = await client.PrepareMacRemovalAsync(bound.Rows[0], default);
+        bool removed = await client.RemoveMacAsync(ticket, default);
+        Check("MAC removal sends the binding page token with the exact MAC and verifies the result after a redirect", removed && wire.Removals == 1 && (await client.BoundDevicesAsync(1, default)).Total == 0);
         bool blocked = false; try { await client.RemoveMacAsync(ticket, default); } catch (SelfException e) { blocked = e.Code == "expired"; }
         Check("MAC removal confirmation is single use", blocked && wire.Removals == 1);
         var features = await client.FeaturesAsync(default); Check("Platform navigation excludes write URLs and foreign origins", features.Length == 1 && features[0].Builtin && features[0].Name == "我的绑定设备");
@@ -243,6 +251,7 @@ sealed class SelfWire(int group) : HttpMessageHandler
 {
     public string[] Values = new string[6].Select(_ => "").ToArray(); public bool OtherActive, FullForm, Safe = true; private bool logged, bound = true, online = true; public int Writes, Removals, Offlines, LoginPosts;
     public Action? BeforeOfflineForm;
+    public bool MissingMacToken;
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
         string path = request.RequestUri!.AbsolutePath; string text = "";
@@ -256,7 +265,22 @@ sealed class SelfWire(int group) : HttpMessageHandler
         else if (path == "/Self/dashboard") text = "<a href='/Self/service/myMac'>绑定设备</a><a href='/Self/service/unbindmac'>写操作</a><a href='/Self/dashboard/oprateMauthAction'>默认操作</a><a href='http://example.invalid/Self/service/myMac'>外部</a>";
         else if (path is "/Self/bill" or "/Self/service") text = "";
         else if (path == "/Self/service/getMacList") text = bound ? "{\"total\":1,\"rows\":[[0,\"AABBCCDDEEFF\",\"phone\",\"2026-10-01\",\"192.0.2.2\"]]}" : "{\"total\":0,\"rows\":[]}";
-        else if (path == "/Self/service/unbindmac") { if (!request.RequestUri.Query.Contains("AABBCCDDEEFF")) throw new InvalidDataException(); Removals++; bound = false; text = "{}"; }
+        else if (path == "/Self/service/myMac") text = MissingMacToken ? "<h1>绑定设备</h1>" : """
+            <script>
+            function unbindmac(unbindmac) {
+                window.location.href = '/Self/service/unbindmac?mac=' + unbindmac + "&ajaxCsrfToken=" + 'test-binding-page-token';
+            }
+            </script>
+            """;
+        else if (path == "/Self/service/unbindmac")
+        {
+            Removals++;
+            if (request.Method != HttpMethod.Get || request.RequestUri.Query != "?mac=AABBCCDDEEFF&ajaxCsrfToken=test-binding-page-token"
+                || request.Headers.Referrer != new Uri(SelfClient.Base, "service/myMac") || request.Headers.Contains("X-Requested-With"))
+                return new(HttpStatusCode.Forbidden);
+            bound = false;
+            return new(HttpStatusCode.Found) { Headers = { Location = new Uri("/Self/service/myMac", UriKind.Relative) } };
+        }
         else if (path == "/Self/service/operatorId")
         {
             BeforeOfflineForm?.Invoke();

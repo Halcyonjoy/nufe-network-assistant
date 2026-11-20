@@ -52,6 +52,9 @@ internal sealed class SelfDemoHandler : HttpMessageHandler
         else if (path == "/Self/unlogin/helpinfo/0") body = "<div class='container'>暂无使用帮助信息</div>";
         else if (path == "/Self/unlogin/agreement") body = "<div class='container'><h2>合成服务协议示例（仅用于界面验证）</h2><p>这里展示读取的正文，不表示接受或签署。</p><script>excluded-script-text</script></div>";
         else if (path == "/Self/bill/getMonthPay") body = "{\"total\":1,\"summary\":{\"USETIME\":2,\"USEFLOW\":3,\"USEBASEMONEY\":10,\"USEDMONEY\":0},\"rows\":[[\"2026-10-01\",\"2026-10-31\",\"示例校园套餐\",10,0,2,3,\"2026-10-31\"]]}";
+        else if (path == "/Self/service/myMac") body = """
+            <script>function unbindmac(unbindmac) { window.location.href = '/Self/service/unbindmac?mac=' + unbindmac + "&ajaxCsrfToken=" + 'demo-mac-token'; }</script>
+            """;
         else if (path == "/Self/service/getMacList")
         {
             var rows = new List<object[]>();
@@ -62,9 +65,10 @@ internal sealed class SelfDemoHandler : HttpMessageHandler
         else if (path == "/Self/service/unbindmac")
         {
             var fields = Fields(request.RequestUri.Query.TrimStart('?'));
+            if (fields["ajaxCsrfToken"] != "demo-mac-token") return new(HttpStatusCode.Forbidden);
             if (fields["mac"] == "001122334455") ownMacBound = false;
             else if (fields["mac"] == "AABBCCDDEEFF") macBound = false;
-            body = "{}";
+            return new(HttpStatusCode.Found) { Headers = { Location = new Uri("/Self/service/myMac", UriKind.Relative) } };
         }
         else if (path == "/Self/service/bind-operator") { var fields = Fields(await request.Content!.ReadAsStringAsync(token)); bindings = Enumerable.Range(1, 6).Select(n => fields["FLDEXTRA" + n]).ToArray(); body = "{}"; }
         else if (path == "/Self/service/operatorId") { body = "<form method='post' action='/Self/service/bind-operator'><input name='csrftoken' value='demo-csrf'>"; for (int i = 0; i < 6; i++) body += $"<input name='FLDEXTRA{i + 1}' value='{WebUtility.HtmlEncode(bindings[i])}'>"; body += "</form>"; }

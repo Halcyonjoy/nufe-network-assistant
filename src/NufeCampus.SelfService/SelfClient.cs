@@ -239,11 +239,39 @@ public sealed partial class SelfClient : IDisposable
     }, token);
     public Task<bool> RemoveMacAsync(MacTicket ticket, CancellationToken token) => Locked(async () =>
     {
-        Consume(ticket, ticket.Expires); if ((await AllBound(token)).Count(d => d == ticket.Device) != 1) throw new SelfException("changed"); var form = await OperatorForm(token);
-        using var encoded = new FormUrlEncodedContent(new Dictionary<string, string> { { "mac", ticket.Device.Mac }, { "ajaxCsrfToken", form.Ajax } });
+        Consume(ticket, ticket.Expires);
+        if ((await AllBound(token)).Count(d => d == ticket.Device) != 1) throw new SelfException("changed");
+
+        const string boundPage = "service/myMac";
+        using var doc = new HtmlParser().ParseDocument(await Get(boundPage, token));
+        // The binding page embeds this value in its unbind navigation, not in the operator form.
+        const string pattern = """
+            \bfunction\s+unbindmac\s*\(\s*(?<mac>\w+)\s*\)\s*\{\s*
+            window\.location\.href\s*=\s*(?<urlQuote>['"])/Self/service/unbindmac\?mac=\k<urlQuote>\s*\+\s*\k<mac>\s*\+\s*
+            (?<queryQuote>['"])&ajaxCsrfToken=\k<queryQuote>\s*\+\s*
+            (?<tokenQuote>['"])(?<token>[A-Za-z0-9_-]{1,200})\k<tokenQuote>\s*;?\s*\}
+            """;
+        var unbind = new Regex(pattern, RegexOptions.CultureInvariant | RegexOptions.IgnorePatternWhitespace, TimeSpan.FromMilliseconds(100));
+        var matches = doc.QuerySelectorAll("script:not([src])")
+            .SelectMany(script => unbind.Matches(script.TextContent))
+            .Take(2).ToArray();
+        if (matches.Length != 1) throw new SelfException("protocol");
+
+        using var encoded = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["mac"] = ticket.Device.Mac,
+            ["ajaxCsrfToken"] = matches[0].Groups["token"].Value
+        });
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(Base, "service/unbindmac?" + await encoded.ReadAsStringAsync(token)));
-        request.Headers.Referrer = new(Base, "service/myMac"); request.Headers.Add("X-Requested-With", "XMLHttpRequest"); Guard(); using var response = await http.SendAsync(request, token);
-        if (!response.IsSuccessStatusCode || (await AllBound(token)).Any(d => Wifi.NormalizeMac(d.Mac) == Wifi.NormalizeMac(ticket.Device.Mac))) throw new SelfException("uncertain"); return true;
+        request.Headers.Referrer = new(Base, boundPage);
+        Guard();
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+        // Do not follow the redirect. Only the fresh binding list can confirm removal.
+        if (!response.IsSuccessStatusCode && response.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther))
+            throw new SelfException("uncertain");
+        if ((await AllBound(token)).Any(d => Wifi.NormalizeMac(d.Mac) == Wifi.NormalizeMac(ticket.Device.Mac)))
+            throw new SelfException("uncertain");
+        return true;
     }, token);
     public Task<PlatformFeature[]> FeaturesAsync(CancellationToken token) => Locked(async () =>
     {
