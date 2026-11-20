@@ -169,7 +169,9 @@ try
     var reply = JsonSerializer.Deserialize(status.Output, AppJson.Default.AgentResponse);
     Check("Published CLI queries live isolated state without enabling keepalive", status.Exit == 3 && reply is { Ok: true, Status.Phase: "off_campus" } && before.SequenceEqual(File.ReadAllBytes(Path.Combine(root, "settings.json"))));
     var invalid = await Run(cli, ["--status", "--authenticate"], root);
-    Check("CLI accepts exactly one of two supported arguments", invalid.Exit == 2 && (await Run(cli, ["--help"], root)).Exit == 2);
+    Check("CLI accepts exactly one supported argument", invalid.Exit == 2 &&
+        (await Run(cli, ["--network-diagnostics", "--status"], root)).Exit == 2 &&
+        (await Run(cli, ["--help"], root)).Exit == 2);
     using (var lease = RunnerLease.TryAcquire(store))
     {
         var busy = await Run(cli, ["--authenticate"], root);

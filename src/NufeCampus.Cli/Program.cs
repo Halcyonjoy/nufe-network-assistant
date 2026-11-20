@@ -1,5 +1,6 @@
 using System.Security.Principal;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using NufeCampus.Windows;
 
 internal static class Program
@@ -7,17 +8,28 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
-        if (args.Length != 1 || args[0] is not ("--status" or "--authenticate"))
+        if (args.Length != 1 || args[0] is not ("--status" or "--authenticate" or "--network-diagnostics"))
         {
-            Console.Error.WriteLine("用法：NufeCampus.Cli.exe --status | --authenticate"); return 2;
+            Console.Error.WriteLine("用法：NufeCampus.Cli.exe --status | --authenticate | --network-diagnostics"); return 2;
         }
         try
         {
             if (new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator))
             {
-                Console.Error.WriteLine("请使用保存账号的普通 Windows 用户运行，不要以管理员身份运行。"); return 2;
+                Console.Error.WriteLine("请使用普通 Windows 用户运行，不要以管理员身份运行。"); return 2;
             }
-            // Test isolation is deliberately not a third public command-line argument.
+            if (args[0] == "--network-diagnostics")
+            {
+                var connection = CurrentNetwork.Read()?.Connection;
+                using var probe = new InternetProbe();
+                using var probeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                bool reachable = await probe.CheckAsync(probeTimeout.Token);
+                var report = new NetworkDiagnosis(connection?.Name, connection?.Kind, reachable);
+                Console.WriteLine(JsonSerializer.Serialize(report, CliJson.Default.NetworkDiagnosis));
+                return reachable ? 0 : 1;
+            }
+
+            // Test isolation is configured by the environment, not by public command-line arguments.
             string? root = RuntimeScope.TestRoot();
             var store = new LocalStore(root);
             bool scheduled = Environment.GetEnvironmentVariable("NUFE_CAMPUS_SCHEDULED") == "1";
@@ -76,3 +88,8 @@ internal static class Program
         catch { Console.Error.WriteLine("操作未完成，请检查本机配置、Wi-Fi 权限和脱敏诊断。"); return 1; }
     }
 }
+
+internal sealed record NetworkDiagnosis(string? NetworkName, string? NetworkKind, bool InternetReachable);
+
+[JsonSerializable(typeof(NetworkDiagnosis))]
+internal sealed partial class CliJson : JsonSerializerContext { }

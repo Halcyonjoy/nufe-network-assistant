@@ -7,7 +7,7 @@
 | NufeCampus.SelfService | 自助会话、表单解析、业务确认、历史/导出与配额策略 |
 | NufeCampus.App | WPF前台、首次引导、账号配置、自助页面及独立只读观测 |
 | NufeCampus.Agent | NativeAOT常驻保活、托盘、网络变化/恢复事件 |
-| NufeCampus.Cli | NativeAOT单次实时查询或认证 |
+| NufeCampus.Cli | NativeAOT单次实时查询、认证或网络诊断 |
 | NufeCampus.Scheduled | NativeAOT无窗口任务入口，启动一次Cli后退出 |
 | NufeCampus.SelfWorker | 按需自助配额处理进程，避免HTML解析常驻Agent |
 | NufeCampus.SetupSupport | 安装维护、等待进程退出、任务暂停/迁移/移除 |
@@ -37,7 +37,7 @@ SelfPage按业务平台和白名单拆分。界面事件处理留在App；校园
 
 Agent与Windows任务计划二选一。Agent常驻并响应网络变化/正常唤醒；任务仅在交互用户登录期间周期调用Scheduled→Cli，结束即退出，不唤醒电脑。任务模式无后台外网探测和托盘提醒。两者共用一个任务名和runner.lock写锁，禁止并发认证。前台只读查询不取写锁。
 
-Cli仅接受`--status`或`--authenticate`一个参数。存在Agent时通过当前用户管道协调，否则认证执行前获取写锁。状态查询不解密密码；认证一次不启用保活、不解除暂停、不顶替其他账号。
+Cli每次接受一个参数，支持`--status`、`--authenticate`或`--network-diagnostics`。认证相关命令在Agent存在时通过当前用户管道协调，否则获取运行锁。状态查询不解密密码；认证一次不启用保活、不解除暂停、不顶替其他账号。网络诊断读取当前网络名和接口类型，沿默认网络路径探测外网，独立于校园配置、认证和保活。
 
 后台每次执行生成一条保活记录；计划任务由Scheduled汇总Cli回传的过程，避免父子进程重复写入。记录只保存固定操作和结果码，保留7天、最多5MB；前台查看最近300次，查看记录不触发认证检查。
 

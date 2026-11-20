@@ -5,7 +5,7 @@
 ## 代码和运行边界
 
 - C# 使用 .editorconfig；公共编译选项位于 Directory.Build.props。版本也由此文件管理。
-- App 负责界面与独立只读观测，Agent 负责常驻保活，Cli 仅接受单个 --status / --authenticate，Scheduled 是无窗口内部入口。
+- App 负责界面与独立只读观测，Agent 负责常驻保活，Cli 每次接受一个参数，支持 --status / --authenticate / --network-diagnostics。网络诊断不读取校园账号配置；Scheduled 是无窗口内部入口。
 - 前台查询不启动保活、不取认证写锁，不将 Agent/任务缓存当作实时认证结果。认证查询与外网探测间隔分别计时；默认3/120秒。最小化暂停，恢复立即刷新。
 - 周期状态读取及自助客户端的 WLAN 调用、页面解析不在 WPF Dispatcher 上执行；渲染使用已取得的状态快照，不同步等待配置锁。慢 WLAN 调用边界由 SelfChecks --responsiveness-only 检查。
 - 两种保活策略共用一个当前用户任务名。Agent间隔10–86400秒；任务间隔60–86400秒且为整分钟。切换时停止旧策略。任务模式完整退出必须持久停止，不能下一轮复活。
